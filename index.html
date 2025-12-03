@@ -57,6 +57,7 @@
             <div class="user-role">Finanzas</div>
           </div>
         </div>
+        <!-- Este botón lo usas en app.js para signOut() -->
         <button class="btn-outline" id="btn-logout">
           Cerrar sesión
         </button>
@@ -73,6 +74,14 @@
           <p class="page-subtitle">Resumen rápido de tu negocio hoy</p>
         </div>
         <div class="topbar-right">
+          <!-- 🔐 Estado de sesión / Firebase Auth -->
+          <div class="cloud-status-pill">
+            <span id="cloud-status">Modo local (sin sesión)</span>
+            <button class="btn-small" id="btn-login-google">
+              Iniciar sesión
+            </button>
+          </div>
+
           <div class="topbar-date" id="topbar-date"></div>
           <button class="btn-secondary" id="btn-add-movimiento">
             + Añadir movimiento
@@ -176,7 +185,7 @@
         </div>
       </section>
 
-      <!-- INGRESOS SECTION (simple: reutiliza tabla general) -->
+      <!-- INGRESOS SECTION -->
       <section id="section-ingresos" class="section">
         <div class="section-header">
           <h2>Todos los ingresos</h2>
@@ -220,7 +229,7 @@
         </div>
       </section>
 
-      <!-- REPORTES SECTION (placeholder bonito) -->
+      <!-- REPORTES SECTION -->
       <section id="section-reportes" class="section">
         <div class="section-header">
           <h2>Reportes y estadísticas</h2>
@@ -238,6 +247,7 @@
         </div>
 
         <div class="config-grid">
+          <!-- Panel datos negocio -->
           <div class="panel">
             <h3>Datos del negocio</h3>
             <label class="field">
@@ -251,10 +261,39 @@
             <button class="btn-primary" id="btn-guardar-config">Guardar configuración</button>
           </div>
 
+          <!-- Panel export -->
           <div class="panel">
             <h3>Exportar todo</h3>
             <p class="muted">Descarga un respaldo completo de tus movimientos (ingresos + gastos) en CSV.</p>
             <button class="btn-secondary" id="btn-export-todo">Exportar CSV completo</button>
+          </div>
+
+          <!-- Panel sincronización Firebase -->
+          <div class="panel">
+            <h3>Sincronización en la nube (Firebase)</h3>
+            <p class="muted">
+              Conecta tu cuenta de Google para guardar y recuperar tus datos desde Firestore.
+            </p>
+
+            <div class="field">
+              <label class="switch">
+                <input type="checkbox" id="cloud-auto">
+                <span>Sincronizar automáticamente cambios con la nube</span>
+              </label>
+            </div>
+
+            <div class="btn-row">
+              <button class="btn-secondary" id="btn-cloud-pull">
+                ⬇ Traer datos desde la nube
+              </button>
+              <button class="btn-secondary" id="btn-cloud-push">
+                ⬆ Subir datos a la nube
+              </button>
+            </div>
+
+            <p class="muted small">
+              Estado actual: <strong id="cloud-status-config">Modo local (sin sesión)</strong>
+            </p>
           </div>
         </div>
       </section>
@@ -315,6 +354,8 @@
     </div>
   </div>
 
-  <script src="app.js?v=4"></script>
+  <!-- IMPORTANTE: ahora es módulo para poder usar imports de Firebase en app.js -->
+  <script type="module" src="app.js?v=4"></script>
 </body>
 </html>
+
