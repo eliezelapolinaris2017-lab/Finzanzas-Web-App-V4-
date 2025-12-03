@@ -1,0 +1,9 @@
+{
+  "name": "Nexus Finance V4",
+  "short_name": "Nexus Finance",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#05060A",
+  "theme_color": "#F5B619",
+  "icons": []
+}
