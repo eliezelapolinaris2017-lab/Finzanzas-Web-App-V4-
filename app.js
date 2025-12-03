@@ -1,9 +1,11 @@
 // app.js — Nexus Finance V4
-// UI renovada + localStorage + Firebase (Auth + Firestore)
+// Dashboard + LocalStorage + Firebase Auth + Sync Firestore
+// RECUERDA: <script type="module" src="app.js?v=4"></script> en index.html
 
-/* =========================================================
-   1. FIREBASE (rellena TU firebaseConfig aquí)
-   ========================================================= */
+/* ==========================
+   1. Firebase (modular v10)
+   ========================== */
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
   getAuth,
@@ -17,11 +19,9 @@ import {
   doc,
   getDoc,
   setDoc,
-  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
-// 🔧 PEGA AQUÍ TU CONFIGURACIÓN REAL DE FIREBASE
-// (cuando me la pases, simplemente sustituyes estos valores)
+// ⚠️ Usa la misma config que tu proyecto de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyC66vv3-yaap1mV2n1GXRUopLqccobWqRE",
   authDomain: "finanzas-web-f4e05.firebaseapp.com",
@@ -31,24 +31,19 @@ const firebaseConfig = {
   appId: "1:1047152523619:web:7d8f7d1f7a5ccc6090bb56"
 };
 
-let fbApp = null;
-let auth = null;
-let db = null;
-let fbUser = null;
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db   = getFirestore(fbApp);
+const provider = new GoogleAuthProvider();
 
-try {
-  fbApp = initializeApp(firebaseConfig);
-  auth = getAuth(fbApp);
-  db = getFirestore(fbApp);
-} catch (err) {
-  console.warn("Firebase no inicializado (revisa firebaseConfig):", err);
-}
+let currentUser = null; // usuario logueado
 
-/* =========================================================
-   2. ESTADO LOCAL (localStorage)
-   ========================================================= */
+/* ==========================
+   2. Estado local
+   ========================== */
+
 const STORAGE_KEY_MOVIMIENTOS = "nexus-finance-v4-movimientos";
-const STORAGE_KEY_CONFIG = "nexus-finance-v4-config";
+const STORAGE_KEY_CONFIG      = "nexus-finance-v4-config";
 
 let movimientos = [];
 let config = {
@@ -56,9 +51,6 @@ let config = {
   moneda: "$",
 };
 
-/* =========================================================
-   3. UTILIDADES LOCAL
-   ========================================================= */
 function loadFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MOVIMIENTOS);
@@ -84,110 +76,56 @@ function saveConfig() {
   localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
 }
 
+/* ==========================
+   3. Utils
+   ========================== */
+
 function formatMoney(value) {
   const num = Number(value) || 0;
-  return `${config.moneda || "$"}${num.toFixed(2)}`;
+  const symbol = config.moneda || "$";
+  return `${symbol}${num.toFixed(2)}`;
 }
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function sameDay(dateStr, dateRef) {
-  return dateStr === dateRef;
+function sameDay(dateStr, ref) {
+  return dateStr === ref;
 }
 
-function sameMonth(dateStr, dateRef) {
+function sameMonth(dateStr, ref) {
   if (!dateStr) return false;
-  return dateStr.slice(0, 7) === dateRef.slice(0, 7);
+  return dateStr.slice(0, 7) === ref.slice(0, 7);
 }
 
-/* =========================================================
-   4. SYNC CON FIRESTORE
-   ========================================================= */
+/* ==========================
+   4. UI: Fecha topbar
+   ========================== */
 
-// Documento donde guardamos todo para cada usuario
-function cloudDocRef() {
-  if (!db || !fbUser) return null;
-  // Puedes cambiar el path si quieres
-  return doc(db, "users", fbUser.uid, "apps", "nexus-finance-v4");
-}
-
-// Cargar datos desde la nube (reemplaza local)
-async function cloudPullReplace() {
-  const ref = cloudDocRef();
-  if (!ref) return;
-
-  try {
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      console.log("No hay datos en la nube todavía.");
-      return;
-    }
-    const data = snap.data();
-
-    if (Array.isArray(data.movimientos)) movimientos = data.movimientos;
-    if (data.config) config = { ...config, ...data.config };
-
-    saveMovimientos();
-    saveConfig();
-    renderKpis();
-    renderTablas();
-    updateCloudStatus("Datos cargados de la nube ✅");
-  } catch (err) {
-    console.error("Error en cloudPullReplace:", err);
-    updateCloudStatus("Error al leer de la nube");
-  }
-}
-
-// Guardar datos actuales en Firestore
-async function cloudPush() {
-  const ref = cloudDocRef();
-  if (!ref) return;
-
-  try {
-    await setDoc(
-      ref,
-      {
-        movimientos,
-        config,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-    updateCloudStatus("Datos sincronizados en la nube ☁️");
-  } catch (err) {
-    console.error("Error en cloudPush:", err);
-    updateCloudStatus("Error al guardar en la nube");
-  }
-}
-
-/* =========================================================
-   5. FECHA TOPBAR
-   ========================================================= */
 function renderTopbarDate() {
   const el = document.getElementById("topbar-date");
   if (!el) return;
   const now = new Date();
-  const formato = now.toLocaleDateString("es-PR", {
+  el.textContent = now.toLocaleDateString("es-PR", {
     weekday: "short",
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
-  el.textContent = formato;
 }
 
-/* =========================================================
-   6. KPIs
-   ========================================================= */
+/* ==========================
+   5. KPIs Dashboard
+   ========================== */
+
 function renderKpis() {
   const hoy = todayISO();
 
   let ingresosHoy = 0;
-  let gastosHoy = 0;
+  let gastosHoy   = 0;
   let ingresosMes = 0;
-  let gastosMes = 0;
+  let gastosMes   = 0;
 
   movimientos.forEach((m) => {
     if (!m.fecha) return;
@@ -207,50 +145,42 @@ function renderKpis() {
 
   const balanceHoy = ingresosHoy - gastosHoy;
   const balanceMes = ingresosMes - gastosMes;
+  const movimientosMes = movimientos.filter((m) => sameMonth(m.fecha, hoy)).length;
 
-  const elIngHoy = document.getElementById("kpi-ingresos-hoy");
-  const elGasHoy = document.getElementById("kpi-gastos-hoy");
-  const elBalHoy = document.getElementById("kpi-balance-hoy");
-  const elIngMes = document.getElementById("kpi-ingresos-mes");
-  const elGasMes = document.getElementById("kpi-gastos-mes");
-  const elBalMes = document.getElementById("kpi-balance-mes");
-  const elMovMes = document.getElementById("kpi-movimientos-mes");
-  const elUlt = document.getElementById("kpi-ultimo-movimiento");
+  const elInHoy   = document.getElementById("kpi-ingresos-hoy");
+  const elGaHoy   = document.getElementById("kpi-gastos-hoy");
+  const elBaHoy   = document.getElementById("kpi-balance-hoy");
+  const elInMes   = document.getElementById("kpi-ingresos-mes");
+  const elGaMes   = document.getElementById("kpi-gastos-mes");
+  const elBaMes   = document.getElementById("kpi-balance-mes");
+  const elMovMes  = document.getElementById("kpi-movimientos-mes");
+  const elUltMov  = document.getElementById("kpi-ultimo-movimiento");
 
-  if (elIngHoy) elIngHoy.textContent = formatMoney(ingresosHoy);
-  if (elGasHoy) elGasHoy.textContent = formatMoney(gastosHoy);
-  if (elBalHoy) elBalHoy.textContent = formatMoney(balanceHoy);
+  if (elInHoy)  elInHoy.textContent  = formatMoney(ingresosHoy);
+  if (elGaHoy)  elGaHoy.textContent  = formatMoney(gastosHoy);
+  if (elBaHoy)  elBaHoy.textContent  = formatMoney(balanceHoy);
+  if (elInMes)  elInMes.textContent  = `Mes actual: ${formatMoney(ingresosMes)}`;
+  if (elGaMes)  elGaMes.textContent  = `Mes actual: ${formatMoney(gastosMes)}`;
+  if (elBaMes)  elBaMes.textContent  = `Balance mes: ${formatMoney(balanceMes)}`;
+  if (elMovMes) elMovMes.textContent = String(movimientosMes);
 
-  if (elIngMes) elIngMes.textContent = `Mes actual: ${formatMoney(ingresosMes)}`;
-  if (elGasMes) elGasMes.textContent = `Mes actual: ${formatMoney(gastosMes)}`;
-  if (elBalMes) elBalMes.textContent = `Balance mes: ${formatMoney(balanceMes)}`;
-
-  const movMes = movimientos.filter((m) => sameMonth(m.fecha, hoy)).length;
-  if (elMovMes) elMovMes.textContent = String(movMes);
-
-  const ultimo = [...movimientos]
-    .slice()
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-
-  if (elUlt) {
+  if (elUltMov) {
+    const ultimo = [...movimientos]
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
     if (ultimo) {
       const tipoTxt = ultimo.tipo === "ingreso" ? "Ingreso" : "Gasto";
-      elUlt.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
+      elUltMov.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
     } else {
-      elUlt.textContent = "Sin movimientos recientes";
+      elUltMov.textContent = "Sin movimientos recientes";
     }
-  }
-
-  // Mostrar nombre de negocio (si lo configuraste)
-  const brandName = document.getElementById("brand-name");
-  if (brandName && config.nombreNegocio) {
-    brandName.textContent = config.nombreNegocio;
   }
 }
 
-/* =========================================================
-   7. TABLAS
-   ========================================================= */
+/* ==========================
+   6. Tablas
+   ========================== */
+
 function buildRow(m) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
@@ -264,8 +194,8 @@ function buildRow(m) {
 }
 
 function renderTablas() {
-  const tbodyIng = document.getElementById("tbody-ingresos");
-  const tbodyGas = document.getElementById("tbody-gastos");
+  const tbodyIng     = document.getElementById("tbody-ingresos");
+  const tbodyGas     = document.getElementById("tbody-gastos");
   const tbodyIngFull = document.getElementById("tbody-ingresos-full");
   const tbodyGasFull = document.getElementById("tbody-gastos-full");
 
@@ -274,12 +204,13 @@ function renderTablas() {
   });
 
   const ingresos = movimientos.filter((m) => m.tipo === "ingreso");
-  const gastos = movimientos.filter((m) => m.tipo === "gasto");
+  const gastos   = movimientos.filter((m) => m.tipo === "gasto");
 
   const recientesIng = ingresos
     .slice()
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 10);
+
   const recientesGas = gastos
     .slice()
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -287,32 +218,32 @@ function renderTablas() {
 
   recientesIng.forEach((m) => tbodyIng && tbodyIng.appendChild(buildRow(m)));
   recientesGas.forEach((m) => tbodyGas && tbodyGas.appendChild(buildRow(m)));
+
   ingresos.forEach((m) => tbodyIngFull && tbodyIngFull.appendChild(buildRow(m)));
   gastos.forEach((m) => tbodyGasFull && tbodyGasFull.appendChild(buildRow(m)));
 }
 
-/* =========================================================
-   8. MODAL DE NUEVO MOVIMIENTO
-   ========================================================= */
+/* ==========================
+   7. Modal de movimiento
+   ========================== */
+
 const modal = {
-  backdrop: null,
-  tipoInput: null,
+  backdrop:   null,
+  tipoInput:  null,
   fechaInput: null,
-  descInput: null,
-  catInput: null,
-  metodoInput: null,
+  descInput:  null,
+  catInput:   null,
+  metodoInput:null,
   montoInput: null,
-  titleEl: null,
+  titleEl:    null,
 
   open(tipo) {
     if (!this.backdrop) return;
     this.tipoInput.value = tipo || "ingreso";
     this.titleEl.textContent = tipo === "gasto" ? "Nuevo gasto" : "Nuevo ingreso";
-
     if (!this.fechaInput.value) {
       this.fechaInput.value = todayISO();
     }
-
     this.backdrop.classList.add("show");
   },
 
@@ -323,19 +254,21 @@ const modal = {
 };
 
 function setupModal() {
-  modal.backdrop = document.getElementById("modal-movimiento");
-  modal.tipoInput = document.getElementById("mov-tipo");
+  modal.backdrop   = document.getElementById("modal-movimiento");
+  modal.tipoInput  = document.getElementById("mov-tipo");
   modal.fechaInput = document.getElementById("mov-fecha");
-  modal.descInput = document.getElementById("mov-descripcion");
-  modal.catInput = document.getElementById("mov-categoria");
-  modal.metodoInput = document.getElementById("mov-metodo");
+  modal.descInput  = document.getElementById("mov-descripcion");
+  modal.catInput   = document.getElementById("mov-categoria");
+  modal.metodoInput= document.getElementById("mov-metodo");
   modal.montoInput = document.getElementById("mov-monto");
-  modal.titleEl = document.getElementById("modal-title");
+  modal.titleEl    = document.getElementById("modal-title");
 
+  // botón topbar
   document.getElementById("btn-add-movimiento")?.addEventListener("click", () => {
     modal.open("ingreso");
   });
 
+  // botones dentro de secciones
   document.querySelectorAll("[data-add]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tipo = btn.getAttribute("data-add") === "gasto" ? "gasto" : "ingreso";
@@ -347,14 +280,14 @@ function setupModal() {
   document.getElementById("modal-cancel")?.addEventListener("click", () => modal.close());
 
   const form = document.getElementById("form-movimiento");
-  form?.addEventListener("submit", async (e) => {
+  form?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const tipo = modal.tipoInput.value;
-    const fecha = modal.fechaInput.value || todayISO();
+    const tipo        = modal.tipoInput.value;
+    const fecha       = modal.fechaInput.value || todayISO();
     const descripcion = modal.descInput.value.trim();
-    const categoria = modal.catInput.value.trim();
-    const metodo = modal.metodoInput.value;
-    const monto = Number(modal.montoInput.value);
+    const categoria   = modal.catInput.value.trim();
+    const metodo      = modal.metodoInput.value;
+    const monto       = Number(modal.montoInput.value);
 
     if (!descripcion || !categoria || !metodo || !fecha || !monto) {
       alert("Completa todos los campos y coloca un monto válido.");
@@ -377,20 +310,16 @@ function setupModal() {
     renderKpis();
     renderTablas();
 
-    // 🔄 Sincronizar con la nube si hay usuario conectado
-    if (fbUser) {
-      cloudPush().catch((err) => console.warn("No se pudo sincronizar:", err));
-    }
-
     form.reset();
     modal.fechaInput.value = todayISO();
     modal.close();
   });
 }
 
-/* =========================================================
-   9. NAVEGACIÓN SECCIONES
-   ========================================================= */
+/* ==========================
+   8. Navegación secciones
+   ========================== */
+
 function setupNavigation() {
   const navItems = document.querySelectorAll(".nav-item");
   const sections = document.querySelectorAll(".section");
@@ -413,9 +342,10 @@ function setupNavigation() {
   });
 }
 
-/* =========================================================
-   10. EXPORTAR CSV
-   ========================================================= */
+/* ==========================
+   9. Exportar CSV
+   ========================== */
+
 function movimientosToCsv(rows) {
   const header = ["tipo", "fecha", "descripcion", "categoria", "metodo", "monto"];
   const lines = [header.join(",")];
@@ -438,9 +368,9 @@ function movimientosToCsv(rows) {
 function downloadCsv(filename, csv) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
+  const a   = document.createElement("a");
+  a.href    = url;
+  a.download= filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -450,25 +380,23 @@ function downloadCsv(filename, csv) {
 function setupExportButtons() {
   document.getElementById("btn-export-ingresos")?.addEventListener("click", () => {
     const ingresos = movimientos.filter((m) => m.tipo === "ingreso");
-    const csv = movimientosToCsv(ingresos);
-    downloadCsv("ingresos.csv", csv);
+    downloadCsv("ingresos.csv", movimientosToCsv(ingresos));
   });
 
   document.getElementById("btn-export-gastos")?.addEventListener("click", () => {
     const gastos = movimientos.filter((m) => m.tipo === "gasto");
-    const csv = movimientosToCsv(gastos);
-    downloadCsv("gastos.csv", csv);
+    downloadCsv("gastos.csv", movimientosToCsv(gastos));
   });
 
   document.getElementById("btn-export-todo")?.addEventListener("click", () => {
-    const csv = movimientosToCsv(movimientos);
-    downloadCsv("movimientos-completos.csv", csv);
+    downloadCsv("movimientos-completos.csv", movimientosToCsv(movimientos));
   });
 }
 
-/* =========================================================
-   11. CONFIGURACIÓN BÁSICA
-   ========================================================= */
+/* ==========================
+   🔧 10. Configuración
+   ========================== */
+
 function setupConfig() {
   const nombreInput = document.getElementById("config-nombre-negocio");
   const monedaInput = document.getElementById("config-moneda");
@@ -478,82 +406,17 @@ function setupConfig() {
 
   document.getElementById("btn-guardar-config")?.addEventListener("click", () => {
     if (nombreInput) config.nombreNegocio = nombreInput.value.trim();
-    if (monedaInput) config.moneda = monedaInput.value.trim() || "$";
+    if (monedaInput) config.moneda       = monedaInput.value.trim() || "$";
     saveConfig();
     renderKpis();
-
-    if (fbUser) {
-      cloudPush().catch((err) => console.warn("No se pudo sincronizar config:", err));
-    }
-
     alert("Configuración guardada.");
   });
 }
 
-/* =========================================================
-   12. AUTH UI (GOOGLE / LOGOUT)
-   ========================================================= */
-function updateCloudStatus(msg) {
-  const el = document.getElementById("cloud-status");
-  if (!el) return;
-  if (fbUser) {
-    const name = fbUser.displayName || fbUser.email || fbUser.uid;
-    el.textContent = `${msg} — ${name}`;
-  } else {
-    el.textContent = msg || "Sincronización local (no conectado)";
-  }
-}
+/* ==========================
+   11. Service Worker (simple)
+   ========================== */
 
-function setupAuth() {
-  if (!auth) {
-    console.warn("Firebase Auth no disponible (revisa config).");
-    updateCloudStatus("Solo modo local (sin Firebase)");
-    return;
-  }
-
-  const provider = new GoogleAuthProvider();
-  const btnLogin = document.getElementById("btn-login-google");
-  const btnLogout = document.getElementById("btn-logout");
-
-  btnLogin?.addEventListener("click", async () => {
-    try {
-      await signInWithPopup(auth, provider);
-      // El onAuthStateChanged se encargará del resto
-    } catch (err) {
-      console.error("Error al iniciar sesión:", err);
-      alert("No se pudo iniciar sesión con Google.");
-    }
-  });
-
-  btnLogout?.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error("Error al cerrar sesión:", err);
-      alert("No se pudo cerrar sesión.");
-    }
-  });
-
-  onAuthStateChanged(auth, async (user) => {
-    fbUser = user || null;
-
-    if (fbUser) {
-      updateCloudStatus("Conectado ☁️");
-      // Al conectarse, traemos los datos de la nube
-      await cloudPullReplace();
-    } else {
-      updateCloudStatus("Solo modo local (no conectado)");
-    }
-
-    // Opcional: cambiar visibilidad de botones
-    if (btnLogin) btnLogin.style.display = fbUser ? "none" : "inline-flex";
-    if (btnLogout) btnLogout.style.display = fbUser ? "inline-flex" : "none";
-  });
-}
-
-/* =========================================================
-   13. SERVICE WORKER
-   ========================================================= */
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker
@@ -562,9 +425,127 @@ function registerServiceWorker() {
   }
 }
 
-/* =========================================================
-   14. INIT
-   ========================================================= */
+/* ==========================
+   12. Firebase Auth + Sync
+   ========================== */
+
+// Ruta compatible con tus reglas:
+//
+// match /users/{uid}/state/{docId} { ... }
+function getCloudDocRef() {
+  if (!currentUser) return null;
+  return doc(db, "users", currentUser.uid, "state", "app");
+}
+
+// UI de auth / nube (opcionales, no rompe si no existen)
+function updateAuthUI() {
+  const statusEl = document.getElementById("cloud-status");
+  const loginBtn = document.getElementById("btn-login-google");
+  const logoutBtn= document.getElementById("btn-logout");
+
+  if (statusEl) {
+    if (currentUser) {
+      statusEl.textContent = currentUser.displayName || currentUser.email || "Conectado";
+    } else {
+      statusEl.textContent = "Modo local (sin sesión)";
+    }
+  }
+
+  if (loginBtn)  loginBtn.style.display  = currentUser ? "none" : "inline-flex";
+  if (logoutBtn) logoutBtn.style.display = currentUser ? "inline-flex" : "inline-flex"; // ya existe en sidebar
+}
+
+async function handleLoginGoogle() {
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    console.error("Error login Google:", e);
+    alert("No se pudo iniciar sesión con Google.");
+  }
+}
+
+async function handleLogout() {
+  try {
+    await signOut(auth);
+    alert("Sesión cerrada.");
+  } catch (e) {
+    console.error("Error al cerrar sesión:", e);
+    alert("No se pudo cerrar sesión.");
+  }
+}
+
+async function cloudPullReplace() {
+  if (!currentUser) {
+    alert("Primero inicia sesión con Google.");
+    return;
+  }
+  try {
+    const ref  = getCloudDocRef();
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      alert("No hay datos en la nube todavía.");
+      return;
+    }
+    const remote = snap.data() || {};
+    console.log("Datos remotos:", remote);
+
+    movimientos = Array.isArray(remote.movimientos) ? remote.movimientos : [];
+    config      = { ...config, ...(remote.config || {}) };
+
+    saveMovimientos();
+    saveConfig();
+    renderKpis();
+    renderTablas();
+    setupConfig(); // recarga inputs
+
+    alert("Datos cargados desde la nube.");
+  } catch (err) {
+    console.error("Error en cloudPullReplace:", err);
+    alert("Error al leer de la nube: " + (err.code || err.message));
+  }
+}
+
+async function cloudPushReplace() {
+  if (!currentUser) {
+    alert("Primero inicia sesión con Google.");
+    return;
+  }
+  try {
+    const ref = getCloudDocRef();
+    await setDoc(ref, {
+      movimientos,
+      config,
+      updatedAt: new Date().toISOString(),
+    });
+    alert("Datos guardados en la nube.");
+  } catch (err) {
+    console.error("Error en cloudPushReplace:", err);
+    alert("Error al guardar en la nube: " + (err.code || err.message));
+  }
+}
+
+function setupCloudUI() {
+  const loginBtn   = document.getElementById("btn-login-google");
+  const logoutBtn  = document.getElementById("btn-logout");
+  const pullBtn    = document.getElementById("btn-cloud-pull");
+  const pushBtn    = document.getElementById("btn-cloud-push");
+
+  loginBtn?.addEventListener("click", handleLoginGoogle);
+  logoutBtn?.addEventListener("click", handleLogout);
+  pullBtn?.addEventListener("click", cloudPullReplace);
+  pushBtn?.addEventListener("click", cloudPushReplace);
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user || null;
+    console.log("Auth:", currentUser ? currentUser.uid : "NO LOGUEADO");
+    updateAuthUI();
+  });
+}
+
+/* ==========================
+   13. INIT
+   ========================== */
+
 document.addEventListener("DOMContentLoaded", () => {
   loadFromStorage();
   renderTopbarDate();
@@ -572,8 +553,8 @@ document.addEventListener("DOMContentLoaded", () => {
   setupModal();
   setupExportButtons();
   setupConfig();
-  setupAuth(); // Google + Firestore
   registerServiceWorker();
   renderKpis();
   renderTablas();
+  setupCloudUI();
 });
