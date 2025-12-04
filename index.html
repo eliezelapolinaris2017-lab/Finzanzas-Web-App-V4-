@@ -2,18 +2,15 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Nexus Finance — Desktop</title>
+  <title>Nexus Finance — Panel Principal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Panel financiero moderno para gestionar ingresos, gastos y facturas de tu negocio.">
-
+  <meta name="description" content="Panel financiero moderno para gestionar ingresos, gastos, facturas y balance de tu negocio.">
   <link rel="icon" type="image/png" href="assets/logo.png" />
-
   <!-- Fuente -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <link rel="stylesheet" href="styles.css?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <div class="app-shell">
@@ -24,7 +21,7 @@
         <img src="assets/logo.png" alt="Nexus Finance" class="sidebar-logo">
         <div class="sidebar-brand">
           <span class="brand-title">Nexus Finance</span>
-          <span class="brand-subtitle">Desktop v4</span>
+          <span class="brand-subtitle">by Nexus Tools PR</span>
         </div>
       </div>
 
@@ -45,6 +42,10 @@
           <span class="nav-icon">🧾</span>
           <span>Facturas</span>
         </button>
+        <button class="nav-item" data-section="reportes">
+          <span class="nav-icon">📈</span>
+          <span>Reportes</span>
+        </button>
         <button class="nav-item" data-section="config">
           <span class="nav-icon">⚙️</span>
           <span>Configuración</span>
@@ -60,19 +61,19 @@
           </div>
         </div>
         <button class="btn-outline" id="btn-logout">
-          Salir
+          Cerrar sesión
         </button>
       </div>
     </aside>
 
-    <!-- MAIN -->
+    <!-- MAIN CONTENT -->
     <main class="main">
 
       <!-- TOPBAR -->
       <header class="topbar">
         <div>
           <h1 class="page-title">Panel financiero</h1>
-          <p class="page-subtitle">Control de ingresos, gastos y facturas desde tu escritorio</p>
+          <p class="page-subtitle">Resumen rápido de tu negocio hoy</p>
         </div>
         <div class="topbar-right">
           <div class="topbar-date" id="topbar-date"></div>
@@ -122,6 +123,7 @@
 
         <!-- TABLAS RESUMEN -->
         <div class="panel-grid">
+          <!-- Ingresos recientes -->
           <section class="panel">
             <div class="panel-header">
               <h2>Ingresos recientes</h2>
@@ -142,11 +144,13 @@
                   </tr>
                 </thead>
                 <tbody id="tbody-ingresos">
+                  <!-- dinámico -->
                 </tbody>
               </table>
             </div>
           </section>
 
+          <!-- Gastos recientes -->
           <section class="panel">
             <div class="panel-header">
               <h2>Gastos recientes</h2>
@@ -167,6 +171,7 @@
                   </tr>
                 </thead>
                 <tbody id="tbody-gastos">
+                  <!-- dinámico -->
                 </tbody>
               </table>
             </div>
@@ -222,26 +227,101 @@
       <section id="section-facturas" class="section">
         <div class="section-header">
           <h2>Facturas</h2>
-          <div style="display:flex; gap:8px;">
-            <button class="btn-secondary" id="btn-nueva-factura">+ Nueva factura</button>
-            <button class="btn-small-outline" id="btn-facturas-export-csv">Exportar CSV</button>
-          </div>
         </div>
-        <div class="table-wrapper">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th># Factura</th>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th class="right">Total</th>
-                <th>PDF</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-facturas">
-            </tbody>
-          </table>
+
+        <div class="facturas-grid">
+          <!-- Formulario factura -->
+          <section class="panel">
+            <h3>Crear / editar factura</h3>
+            <form id="form-factura">
+              <input type="hidden" id="fac-id">
+
+              <label class="field">
+                <span>Número de factura</span>
+                <input type="text" id="fac-numero" required placeholder="Ej. 2025-001">
+              </label>
+
+              <label class="field">
+                <span>Fecha</span>
+                <input type="date" id="fac-fecha" required>
+              </label>
+
+              <label class="field">
+                <span>Cliente</span>
+                <input type="text" id="fac-cliente" required placeholder="Nombre del cliente">
+              </label>
+
+              <label class="field">
+                <span>Dirección del cliente</span>
+                <textarea id="fac-cliente-dir" rows="2" placeholder="Dirección de facturación"></textarea>
+              </label>
+
+              <label class="field">
+                <span>Método de pago</span>
+                <select id="fac-metodo">
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="ATH Móvil">ATH Móvil</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Tarjeta">Tarjeta</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>Ítems (una línea por ítem: cantidad | descripción | precio)</span>
+                <textarea id="fac-items-text" rows="5" placeholder="1 | Mantenimiento profundo | 150.00"></textarea>
+              </label>
+
+              <label class="field">
+                <span>Impuesto (%)</span>
+                <input type="number" id="fac-tax" value="0" min="0" step="0.01">
+              </label>
+
+              <label class="field">
+                <span>Notas</span>
+                <textarea id="fac-notas" rows="2" placeholder="Notas en la parte baja de la factura"></textarea>
+              </label>
+
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">Guardar factura</button>
+                <button type="button" class="btn-secondary" id="btn-factura-guardar-pdf">Guardar + PDF</button>
+                <button type="button" class="btn-outline" id="btn-factura-nueva">Nueva</button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Listado de facturas -->
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Listado de facturas</h3>
+            </div>
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Número</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th class="right">Total</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-facturas"></tbody>
+              </table>
+            </div>
+          </section>
         </div>
+      </section>
+
+      <!-- REPORTES (placeholder) -->
+      <section id="section-reportes" class="section">
+        <div class="section-header">
+          <h2>Reportes y estadísticas</h2>
+        </div>
+        <p class="muted">
+          Aquí podrás ver gráficos y análisis más avanzados (ingresos vs gastos, comparación por mes, etc.).
+          Por ahora, el resumen principal está en el Dashboard.
+        </p>
       </section>
 
       <!-- CONFIGURACIÓN -->
@@ -251,65 +331,47 @@
         </div>
 
         <div class="config-grid">
-          <div class="panel">
+          <section class="panel">
             <h3>Datos del negocio</h3>
             <label class="field">
               <span>Nombre del negocio</span>
               <input type="text" id="config-nombre-negocio" placeholder="Ej. Oasis Air Cleaner Services LLC">
             </label>
-
-            <label class="field">
-              <span>Dirección</span>
-              <textarea id="config-empresa-direccion" rows="2" placeholder="Calle, urbanización, pueblo, código postal"></textarea>
-            </label>
-
-            <label class="field">
-              <span>Teléfono</span>
-              <input type="text" id="config-empresa-telefono" placeholder="787-000-0000">
-            </label>
-
-            <label class="field">
-              <span>Email</span>
-              <input type="email" id="config-empresa-email" placeholder="correo@tu-negocio.com">
-            </label>
-
             <label class="field">
               <span>Moneda</span>
               <input type="text" id="config-moneda" value="$">
             </label>
-
+            <label class="field">
+              <span>Dirección del negocio</span>
+              <textarea id="config-empresa-direccion" rows="2"></textarea>
+            </label>
+            <label class="field">
+              <span>Teléfono</span>
+              <input type="text" id="config-empresa-telefono" placeholder="787-000-0000">
+            </label>
+            <label class="field">
+              <span>Email</span>
+              <input type="email" id="config-empresa-email" placeholder="correo@ejemplo.com">
+            </label>
+            <label class="field">
+              <span>Logo para facturas (PNG)</span>
+              <input type="file" id="config-logo-factura" accept="image/png,image/jpeg">
+            </label>
             <button class="btn-primary" id="btn-guardar-config">Guardar configuración</button>
-          </div>
+          </section>
 
-          <div class="panel">
-            <h3>Logo para facturas</h3>
-            <p class="muted">
-              Este logo se usará en la parte superior de las facturas PDF.
-            </p>
-            <input type="file" id="invoice-logo-input" accept="image/*">
-            <div class="invoice-logo-preview">
-              <img id="invoice-logo-preview-img" class="invoice-logo-img" style="display:none;">
-              <span id="invoice-logo-empty">Sin logo cargado</span>
-            </div>
-          </div>
-
-          <div class="panel">
-            <h3>Respaldo local</h3>
+          <section class="panel">
+            <h3>Exportar todo</h3>
             <p class="muted">Descarga un respaldo completo de tus movimientos (ingresos + gastos) en CSV.</p>
-            <button class="btn-secondary" id="btn-export-todo">Exportar movimientos CSV</button>
-            <div class="divider"></div>
-            <p class="muted">
-              Más adelante podrás conectar esta app a SQL / nube, pero el panel y los KPI seguirán funcionando siempre
-              con los datos locales.
-            </p>
-          </div>
+            <button class="btn-secondary" id="btn-export-todo">Exportar CSV completo</button>
+          </section>
         </div>
       </section>
 
     </main>
   </div>
 
-  <!-- MODAL MOVIMIENTO -->
+  <!-- MODAL MOVIMIENTO (ingreso / gasto) -->
   <div class="modal-backdrop" id="modal-movimiento">
     <div class="modal">
       <header class="modal-header">
@@ -362,100 +424,9 @@
     </div>
   </div>
 
-  <!-- MODAL FACTURA -->
-  <div class="modal-backdrop" id="modal-factura">
-    <div class="modal modal-lg">
-      <header class="modal-header">
-        <h2 id="modal-factura-title">Nueva factura</h2>
-        <button class="modal-close" id="modal-factura-close">✕</button>
-      </header>
-
-      <form id="form-factura" class="modal-body">
-        <div class="invoice-header-grid">
-          <div>
-            <label class="field">
-              <span># Factura</span>
-              <input type="text" id="fact-numero" placeholder="Ej. 0001">
-            </label>
-            <label class="field">
-              <span>Fecha</span>
-              <input type="date" id="fact-fecha">
-            </label>
-          </div>
-          <div>
-            <label class="field">
-              <span>Nombre del cliente</span>
-              <input type="text" id="fact-cliente" placeholder="Nombre del cliente">
-            </label>
-            <label class="field">
-              <span>Dirección del cliente</span>
-              <textarea id="fact-cliente-direccion" rows="2" placeholder="Dirección completa"></textarea>
-            </label>
-          </div>
-        </div>
-
-        <h3 class="invoice-lines-title">Líneas de factura</h3>
-        <div class="table-wrapper invoice-items-wrapper">
-          <table class="data-table data-table-compact">
-            <thead>
-              <tr>
-                <th>Descripción</th>
-                <th style="width:70px;">Cant.</th>
-                <th style="width:100px;">Precio</th>
-                <th style="width:90px;">Total</th>
-                <th style="width:50px;">Acción</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-factura-items">
-            </tbody>
-          </table>
-        </div>
-        <button type="button" class="btn-mini" id="btn-add-factura-item">
-          + Añadir línea
-        </button>
-
-        <div class="invoice-totals-grid">
-          <div>
-            <label class="field">
-              <span>Notas al cliente</span>
-              <textarea id="fact-notas" rows="4" placeholder="Condiciones, notas, agradecimientos…"></textarea>
-            </label>
-          </div>
-          <div class="invoice-totals-box">
-            <div class="totals-row">
-              <span>Subtotal</span>
-              <span id="fact-subtotal">$0.00</span>
-            </div>
-            <div class="totals-row">
-              <span>Impuesto (%)</span>
-              <input type="number" id="fact-tax-percent" value="0" min="0" max="30">
-            </div>
-            <div class="totals-row">
-              <span>Impuesto</span>
-              <span id="fact-tax-amount">$0.00</span>
-            </div>
-            <div class="totals-row totals-row-strong">
-              <span>Total factura</span>
-              <span id="fact-total">$0.00</span>
-            </div>
-          </div>
-        </div>
-      </form>
-
-      <footer class="modal-footer">
-        <button type="button" class="btn-secondary" id="modal-factura-cancel">Cancelar</button>
-        <button type="button" class="btn-mini-outline" id="btn-factura-guardar-sin-pdf">Guardar</button>
-        <button type="button" class="btn-primary" id="btn-factura-guardar-pdf">Guardar y PDF</button>
-      </footer>
-    </div>
-  </div>
-
-  <!-- jsPDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
-          integrity="sha512-/5m5uD4wIvGr+1dC9klkSCo7M1y1QTYFpQpMGdjm9SRh6Xvs5uAlYyzlMVd1S7YfFjT6T5nQF1RkcR3v5w3Ykg=="
-          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-  <!-- App -->
-  <script src="app.js?v=1"></script>
+  <!-- jsPDF (OBLIGATORIO antes de app.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Lógica Nexus Finance -->
+  <script src="app.js?v=5"></script>
 </body>
 </html>
