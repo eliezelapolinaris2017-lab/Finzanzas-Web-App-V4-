@@ -4,14 +4,16 @@
   <meta charset="UTF-8" />
   <title>Nexus Finance — Panel Principal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Panel financiero moderno para gestionar ingresos, gastos y balance de tu negocio.">
+  <meta name="description" content="Panel financiero moderno para gestionar ingresos, gastos, facturas y balance de tu negocio.">
   <link rel="icon" type="image/png" href="assets/logo.png" />
-  <link rel="manifest" href="manifest.json" />
-  <!-- Fuente opcional -->
+  <!-- (Opcional) manifest / service-worker para PWA más adelante -->
+  <!-- <link rel="manifest" href="manifest.json" /> -->
+
+  <!-- Fuente -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
   <div class="app-shell">
@@ -39,6 +41,10 @@
           <span class="nav-icon">💸</span>
           <span>Gastos</span>
         </button>
+        <button class="nav-item" data-section="facturas">
+          <span class="nav-icon">🧾</span>
+          <span>Facturas</span>
+        </button>
         <button class="nav-item" data-section="reportes">
           <span class="nav-icon">📈</span>
           <span>Reportes</span>
@@ -57,10 +63,15 @@
             <div class="user-role">Finanzas</div>
           </div>
         </div>
-        <!-- Este botón lo usas en app.js para signOut() -->
-        <button class="btn-outline" id="btn-logout">
-          Cerrar sesión
-        </button>
+
+        <div class="cloud-box">
+          <div class="cloud-status-label">Nube</div>
+          <div class="cloud-status-text" id="cloud-status">Sin conexión</div>
+          <div class="cloud-actions">
+            <button class="btn-small" id="btn-login">Login Google</button>
+            <button class="btn-small-outline" id="btn-logout" style="display:none;">Salir</button>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -74,14 +85,6 @@
           <p class="page-subtitle">Resumen rápido de tu negocio hoy</p>
         </div>
         <div class="topbar-right">
-          <!-- 🔐 Estado de sesión / Firebase Auth -->
-          <div class="cloud-status-pill">
-            <span id="cloud-status">Modo local (sin sesión)</span>
-            <button class="btn-small" id="btn-login-google">
-              Iniciar sesión
-            </button>
-          </div>
-
           <div class="topbar-date" id="topbar-date"></div>
           <button class="btn-secondary" id="btn-add-movimiento">
             + Añadir movimiento
@@ -229,6 +232,37 @@
         </div>
       </section>
 
+      <!-- FACTURAS SECTION -->
+      <section id="section-facturas" class="section">
+        <div class="section-header">
+          <h2>Facturación profesional</h2>
+          <button class="btn-primary" id="btn-new-invoice">+ Nueva factura</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Listado de facturas</h3>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th class="right">Total</th>
+                  <th>Estado</th>
+                  <th class="right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-facturas">
+                <!-- Render dinámico -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- REPORTES SECTION -->
       <section id="section-reportes" class="section">
         <div class="section-header">
@@ -247,7 +281,7 @@
         </div>
 
         <div class="config-grid">
-          <!-- Panel datos negocio -->
+          <!-- Datos negocio -->
           <div class="panel">
             <h3>Datos del negocio</h3>
             <label class="field">
@@ -258,42 +292,59 @@
               <span>Moneda</span>
               <input type="text" id="config-moneda" value="$">
             </label>
+            <label class="field">
+              <span>ID o Registro contribuyente</span>
+              <input type="text" id="config-company-id" placeholder="Ej. 66-1234567">
+            </label>
+            <label class="field">
+              <span>Dirección</span>
+              <textarea id="config-company-address" rows="2" placeholder="Calle, urbanización, pueblo, ZIP"></textarea>
+            </label>
+            <label class="field">
+              <span>Teléfono</span>
+              <input type="text" id="config-company-phone" placeholder="787-000-0000">
+            </label>
+            <label class="field">
+              <span>Email</span>
+              <input type="email" id="config-company-email" placeholder="info@tu-negocio.com">
+            </label>
             <button class="btn-primary" id="btn-guardar-config">Guardar configuración</button>
           </div>
 
-          <!-- Panel export -->
+          <!-- Logo facturas -->
           <div class="panel">
-            <h3>Exportar todo</h3>
-            <p class="muted">Descarga un respaldo completo de tus movimientos (ingresos + gastos) en CSV.</p>
-            <button class="btn-secondary" id="btn-export-todo">Exportar CSV completo</button>
+            <h3>Logo para facturas</h3>
+            <p class="muted">
+              Sube el logo que se usará en la cabecera de tus facturas.
+            </p>
+            <label class="field">
+              <span>Seleccionar archivo (PNG/JPG)</span>
+              <input type="file" id="invoice-logo-input" accept="image/*">
+            </label>
+            <div class="invoice-logo-preview-box">
+              <span class="muted">Vista previa:</span>
+              <div class="invoice-logo-preview" id="invoice-logo-preview">
+                <!-- Imagen por JS si existe -->
+              </div>
+            </div>
           </div>
 
-          <!-- Panel sincronización Firebase -->
+          <!-- Backup / nube -->
           <div class="panel">
-            <h3>Sincronización en la nube (Firebase)</h3>
+            <h3>Copias de seguridad y nube</h3>
+            <p class="muted">Descarga un respaldo completo y sincroniza con Firebase.</p>
+            <button class="btn-secondary" id="btn-export-todo">Exportar CSV completo</button>
+
+            <div class="divider"></div>
+
+            <h4>Sincronizar con la nube (Firebase)</h4>
             <p class="muted">
-              Conecta tu cuenta de Google para guardar y recuperar tus datos desde Firestore.
+              Usa tu cuenta de Google para guardar y recuperar todos los movimientos y facturas en la nube.
             </p>
-
-            <div class="field">
-              <label class="switch">
-                <input type="checkbox" id="cloud-auto">
-                <span>Sincronizar automáticamente cambios con la nube</span>
-              </label>
+            <div class="cloud-buttons">
+              <button class="btn-secondary" id="btn-cloud-pull">⬇ Traer de la nube</button>
+              <button class="btn-primary" id="btn-cloud-push">⬆ Guardar en la nube</button>
             </div>
-
-            <div class="btn-row">
-              <button class="btn-secondary" id="btn-cloud-pull">
-                ⬇ Traer datos desde la nube
-              </button>
-              <button class="btn-secondary" id="btn-cloud-push">
-                ⬆ Subir datos a la nube
-              </button>
-            </div>
-
-            <p class="muted small">
-              Estado actual: <strong id="cloud-status-config">Modo local (sin sesión)</strong>
-            </p>
           </div>
         </div>
       </section>
@@ -354,8 +405,106 @@
     </div>
   </div>
 
-  <!-- IMPORTANTE: ahora es módulo para poder usar imports de Firebase en app.js -->
-  <script type="module" src="app.js?v=4"></script>
+  <!-- MODAL FACTURA -->
+  <div class="modal-backdrop" id="modal-invoice">
+    <div class="modal modal-lg">
+      <header class="modal-header">
+        <h2 id="invoice-modal-title">Nueva factura</h2>
+        <button class="modal-close" id="invoice-modal-close">✕</button>
+      </header>
+      <form id="invoice-form" class="modal-body">
+
+        <div class="invoice-header-grid">
+          <div>
+            <label class="field">
+              <span>Número de factura</span>
+              <input type="text" id="invoice-number" placeholder="Ej. 2025-001" required>
+            </label>
+            <label class="field">
+              <span>Fecha</span>
+              <input type="date" id="invoice-date" required>
+            </label>
+            <label class="field">
+              <span>Vencimiento</span>
+              <input type="date" id="invoice-due">
+            </label>
+          </div>
+
+          <div>
+            <label class="field">
+              <span>Cliente</span>
+              <input type="text" id="invoice-client-name" placeholder="Nombre del cliente" required>
+            </label>
+            <label class="field">
+              <span>Email del cliente</span>
+              <input type="email" id="invoice-client-email" placeholder="cliente@correo.com">
+            </label>
+            <label class="field">
+              <span>Teléfono del cliente</span>
+              <input type="text" id="invoice-client-phone" placeholder="787-000-0000">
+            </label>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Notas (opcional)</span>
+          <textarea id="invoice-notes" rows="2" placeholder="Notas internas o condiciones de pago"></textarea>
+        </label>
+
+        <div class="panel panel-tight">
+          <div class="panel-header">
+            <h3>Conceptos / líneas de factura</h3>
+            <button type="button" class="btn-small" id="btn-add-invoice-item">+ Añadir línea</button>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table data-table-compact">
+              <thead>
+                <tr>
+                  <th>Descripción</th>
+                  <th class="right">Cant.</th>
+                  <th class="right">Precio</th>
+                  <th class="right">Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="invoice-items-body">
+                <!-- Filas dinámicas -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="invoice-totals-grid">
+          <div></div>
+          <div class="invoice-totals-box">
+            <div class="totals-row">
+              <span>Subtotal</span>
+              <span id="invoice-subtotal-display">$0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>Impuestos / IVU (%)</span>
+              <input type="number" id="invoice-tax-rate" step="0.01" min="0" max="30" value="0">
+            </div>
+            <div class="totals-row totals-row-strong">
+              <span>Total</span>
+              <span id="invoice-total-display">$0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <button type="button" class="btn-secondary" id="invoice-modal-cancel">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-primary">
+            Guardar factura
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <!-- IMPORTANTE: type="module" -->
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>
-
