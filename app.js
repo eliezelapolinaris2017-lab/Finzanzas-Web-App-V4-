@@ -1,6 +1,7 @@
 // =========================
 // NEXUS FINANCE DESKTOP v4
 // 100% localStorage (sin Firebase)
+// con FACTURAS que editan, generan PDF y actualizan KPIs
 // =========================
 
 const STORAGE_KEY_MOVIMIENTOS = "nexus-finance-movimientos";
@@ -11,6 +12,7 @@ const STORAGE_KEY_INVOICE_LOGO = "nexus-finance-invoice-logo";
 let movimientos = [];
 let facturas = [];
 let invoiceLogoBase64 = null;
+let currentFacturaEditingId = null; // ← NUEVO: para saber si estamos editando
 
 let config = {
   nombreNegocio: "",
@@ -23,7 +25,6 @@ let config = {
 // ===== UTILIDADES GENERALES =====
 
 function loadFromStorage() {
-  // movimientos
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MOVIMIENTOS);
     movimientos = raw ? JSON.parse(raw) : [];
@@ -32,7 +33,6 @@ function loadFromStorage() {
     movimientos = [];
   }
 
-  // config
   try {
     const rawCfg = localStorage.getItem(STORAGE_KEY_CONFIG);
     if (rawCfg) {
@@ -43,7 +43,6 @@ function loadFromStorage() {
     console.error("Error leyendo config:", e);
   }
 
-  // facturas
   try {
     const rawF = localStorage.getItem(STORAGE_KEY_FACTURAS);
     facturas = rawF ? JSON.parse(rawF) : [];
@@ -52,7 +51,6 @@ function loadFromStorage() {
     facturas = [];
   }
 
-  // logo
   try {
     invoiceLogoBase64 = localStorage.getItem(STORAGE_KEY_INVOICE_LOGO);
   } catch (e) {
@@ -438,6 +436,39 @@ function setupLogout() {
   });
 }
 
+// ===== FACTURAS: MOVIMIENTO AUTOMÁTICO =====
+
+function upsertMovimientoFromFactura(factura) {
+  if (!factura || !factura.id) return;
+
+  let mov = movimientos.find((m) => m.facturaId === factura.id);
+  const now = Date.now();
+
+  const movData = {
+    tipo: "ingreso",
+    fecha: factura.fecha,
+    descripcion: `Factura ${factura.numero} - ${factura.cliente}`,
+    categoria: "Facturas",
+    metodo: "Factura",
+    monto: factura.total,
+    facturaId: factura.id,
+    createdAt: mov ? mov.createdAt : now,
+  };
+
+  if (mov) {
+    Object.assign(mov, movData);
+  } else {
+    movimientos.push({
+      id: `fact-${factura.id}`,
+      ...movData,
+    });
+  }
+
+  saveMovimientos();
+  renderKpis();
+  renderTablas();
+}
+
 // ===== FACTURAS UI =====
 
 function setupFacturasUI() {
@@ -451,6 +482,8 @@ function setupFacturasUI() {
   const btnAddItem = document.getElementById("btn-add-factura-item");
 
   function openFacturaModal(factura) {
+    currentFacturaEditingId = factura ? factura.id : null;
+
     const fechaInput = document.getElementById("fact-fecha");
     const numeroInput = document.getElementById("fact-numero");
     const clienteInput = document.getElementById("fact-cliente");
@@ -458,6 +491,7 @@ function setupFacturasUI() {
     const notasInput = document.getElementById("fact-notas");
     const taxPercent = document.getElementById("fact-tax-percent");
     const tbodyItems = document.getElementById("tbody-factura-items");
+    const titleEl = document.getElementById("modal-factura-title");
 
     tbodyItems.innerHTML = "";
 
@@ -469,8 +503,11 @@ function setupFacturasUI() {
     notasInput.value = factura?.notas || "";
     taxPercent.value = factura?.taxPercent ?? 0;
 
-    const items = factura?.items?.length ? factura.items : [{ descripcion: "", cantidad: 1, precio: 0 }];
+    if (titleEl) {
+      titleEl.textContent = currentFacturaEditingId ? "Editar factura" : "Nueva factura";
+    }
 
+    const items = factura?.items?.length ? factura.items : [{ descripcion: "", cantidad: 1, precio: 0 }];
     items.forEach((it) => addFacturaItemRow(it.descripcion, it.cantidad, it.precio));
 
     recalcFacturaTotals();
@@ -478,6 +515,7 @@ function setupFacturasUI() {
   }
 
   function closeFacturaModal() {
+    currentFacturaEditingId = null;
     modalBackdrop.classList.remove("show");
   }
 
@@ -489,8 +527,27 @@ function setupFacturasUI() {
   btnGuardar?.addEventListener("click", () => {
     const factura = collectFacturaFromModal();
     if (!factura) return;
-    facturas.push(factura);
+
+    let facturaFull;
+    if (currentFacturaEditingId) {
+      const idx = facturas.findIndex((f) => f.id === currentFacturaEditingId);
+      const prev = idx >= 0 ? facturas[idx] : null;
+      const id = currentFacturaEditingId;
+      const createdAt = prev?.createdAt || Date.now();
+      facturaFull = { ...factura, id, createdAt };
+      if (idx >= 0) {
+        facturas[idx] = facturaFull;
+      } else {
+        facturas.push(facturaFull);
+      }
+    } else {
+      const id = Date.now().toString();
+      facturaFull = { ...factura, id, createdAt: Date.now() };
+      facturas.push(facturaFull);
+    }
+
     saveFacturas();
+    upsertMovimientoFromFactura(facturaFull);
     renderFacturasTable();
     closeFacturaModal();
   });
@@ -498,10 +555,29 @@ function setupFacturasUI() {
   btnGuardarPdf?.addEventListener("click", () => {
     const factura = collectFacturaFromModal();
     if (!factura) return;
-    facturas.push(factura);
+
+    let facturaFull;
+    if (currentFacturaEditingId) {
+      const idx = facturas.findIndex((f) => f.id === currentFacturaEditingId);
+      const prev = idx >= 0 ? facturas[idx] : null;
+      const id = currentFacturaEditingId;
+      const createdAt = prev?.createdAt || Date.now();
+      facturaFull = { ...factura, id, createdAt };
+      if (idx >= 0) {
+        facturas[idx] = facturaFull;
+      } else {
+        facturas.push(facturaFull);
+      }
+    } else {
+      const id = Date.now().toString();
+      facturaFull = { ...factura, id, createdAt: Date.now() };
+      facturas.push(facturaFull);
+    }
+
     saveFacturas();
+    upsertMovimientoFromFactura(facturaFull);
     renderFacturasTable();
-    generateFacturaPdf(factura);
+    generateFacturaPdf(facturaFull);
     closeFacturaModal();
   });
 
@@ -509,19 +585,35 @@ function setupFacturasUI() {
     const header = ["numero", "fecha", "cliente", "total"];
     const lines = [header.join(",")];
     facturas.forEach((f) => {
-      lines.push([f.numero, f.fecha, `"${(f.cliente || "").replace(/"/g, '""')}"`, f.total.toFixed(2)].join(","));
+      lines.push([
+        f.numero,
+        f.fecha,
+        `"${(f.cliente || "").replace(/"/g, '""')}"`,
+        (f.total || 0).toFixed(2),
+      ].join(","));
     });
     const csv = lines.join("\n");
     downloadCsv("facturas.csv", csv);
   });
 
-  document.getElementById("tbody-facturas")?.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-fact-pdf]");
-    if (!btn) return;
-    const id = btn.getAttribute("data-fact-pdf");
-    const f = facturas.find((x) => x.id === id);
-    if (!f) return;
-    generateFacturaPdf(f);
+  const tbody = document.getElementById("tbody-facturas");
+  tbody?.addEventListener("click", (e) => {
+    const btnPdf = e.target.closest("[data-fact-pdf]");
+    const btnEdit = e.target.closest("[data-fact-edit]");
+
+    if (btnPdf) {
+      const id = btnPdf.getAttribute("data-fact-pdf");
+      const f = facturas.find((x) => x.id === id);
+      if (!f) return;
+      generateFacturaPdf(f);
+    }
+
+    if (btnEdit) {
+      const id = btnEdit.getAttribute("data-fact-edit");
+      const f = facturas.find((x) => x.id === id);
+      if (!f) return;
+      openFacturaModal(f);
+    }
   });
 }
 
@@ -624,7 +716,6 @@ function collectFacturaFromModal() {
   const total = subtotal + taxAmount;
 
   return {
-    id: Date.now().toString(),
     numero: numeroInput.value.trim(),
     fecha: fechaInput.value || todayISO(),
     cliente: clienteInput.value.trim(),
@@ -635,7 +726,6 @@ function collectFacturaFromModal() {
     taxPercent,
     taxAmount,
     total,
-    createdAt: Date.now(),
   };
 }
 
@@ -654,9 +744,8 @@ function renderFacturasTable() {
       <td>${f.cliente}</td>
       <td class="right">${formatMoney(f.total || 0)}</td>
       <td>
-        <button type="button" class="btn-mini-outline" data-fact-pdf="${f.id}">
-          PDF
-        </button>
+        <button type="button" class="btn-mini" data-fact-edit="${f.id}">Editar</button>
+        <button type="button" class="btn-mini-outline" data-fact-pdf="${f.id}">PDF</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -666,17 +755,23 @@ function renderFacturasTable() {
 // ===== PDF FACTURA (jsPDF) =====
 
 function generateFacturaPdf(factura) {
-  if (!window.jspdf) {
-    alert("jsPDF no está cargado.");
+  let jsPDFConstructor = null;
+  if (window.jspdf && window.jspdf.jsPDF) {
+    jsPDFConstructor = window.jspdf.jsPDF;
+  } else if (window.jsPDF) {
+    jsPDFConstructor = window.jsPDF;
+  }
+
+  if (!jsPDFConstructor) {
+    alert("jsPDF no está cargado, verifica el script en index.html.");
     return;
   }
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF("p", "mm", "letter");
+
+  const doc = new jsPDFConstructor("p", "mm", "letter");
 
   const marginLeft = 15;
   let cursorY = 18;
 
-  // Logo
   if (invoiceLogoBase64) {
     try {
       doc.addImage(invoiceLogoBase64, "PNG", marginLeft, 10, 40, 20);
@@ -685,7 +780,6 @@ function generateFacturaPdf(factura) {
     }
   }
 
-  // Datos negocio
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   const nombre = config.nombreNegocio || "Mi negocio";
@@ -706,14 +800,12 @@ function generateFacturaPdf(factura) {
     doc.text(line, 110, 24 + i * 5);
   });
 
-  // Título
   cursorY = 50;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.text("FACTURA", marginLeft, cursorY);
   cursorY += 8;
 
-  // Datos factura + cliente
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.text(`Factura: ${factura.numero}`, marginLeft, cursorY);
@@ -729,7 +821,6 @@ function generateFacturaPdf(factura) {
 
   cursorY += 18;
 
-  // Tabla items
   const startY = cursorY;
   doc.setFont("helvetica", "bold");
   doc.text("Descripción", marginLeft, startY);
@@ -756,7 +847,6 @@ function generateFacturaPdf(factura) {
     cursorY += lineHeight + 2;
   });
 
-  // Totales
   cursorY += 4;
   doc.text("Subtotal:", 140, cursorY);
   doc.text(formatMoney(factura.subtotal || 0), 180, cursorY, { align: "right" });
@@ -770,7 +860,6 @@ function generateFacturaPdf(factura) {
   doc.text("Total:", 140, cursorY);
   doc.text(formatMoney(factura.total || 0), 180, cursorY, { align: "right" });
 
-  // Notas
   cursorY += 12;
   if (factura.notas) {
     doc.setFont("helvetica", "normal");
