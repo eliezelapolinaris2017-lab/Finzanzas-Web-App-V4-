@@ -1,57 +1,29 @@
-// app.js — Nexus Finance v6
-// Movimientos + Facturas profesionales + Config + Firebase Cloud Sync
+// =========================
+// NEXUS FINANCE DESKTOP v4
+// 100% localStorage (sin Firebase)
+// =========================
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  onAuthStateChanged,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
-
-// ================== FIREBASE CONFIG ==================
-const firebaseConfig = {
-  apiKey: "AIzaSyC66vv3-yaap1mV2n1GXRUopLqccobWqRE",
-  authDomain: "finanzas-web-f4e05.firebaseapp.com",
-  projectId: "finanzas-web-f4e05",
-  storageBucket: "finanzas-web-f4e05.firebasestorage.app",
-  messagingSenderId: "1047152523619",
-  appId: "1:1047152523619:web:7d8f7d1f7a5ccc6090bb56"
-};
-
-const fbApp = initializeApp(firebaseConfig);
-const auth = getAuth(fbApp);
-const db = getFirestore(fbApp);
-const provider = new GoogleAuthProvider();
-
-let currentUser = null;
-
-// ================== LOCAL STORAGE ==================
 const STORAGE_KEY_MOVIMIENTOS = "nexus-finance-movimientos";
 const STORAGE_KEY_CONFIG = "nexus-finance-config";
 const STORAGE_KEY_FACTURAS = "nexus-finance-facturas";
+const STORAGE_KEY_INVOICE_LOGO = "nexus-finance-invoice-logo";
 
 let movimientos = [];
 let facturas = [];
+let invoiceLogoBase64 = null;
+
 let config = {
   nombreNegocio: "",
   moneda: "$",
-  companyId: "",
-  companyAddress: "",
-  companyPhone: "",
-  companyEmail: "",
-  invoiceLogoDataUrl: "", // base64 para logo facturas
+  empresaDireccion: "",
+  empresaTelefono: "",
+  empresaEmail: "",
 };
 
-// ====== UTILIDADES LOCAL ======
+// ===== UTILIDADES GENERALES =====
+
 function loadFromStorage() {
+  // movimientos
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MOVIMIENTOS);
     movimientos = raw ? JSON.parse(raw) : [];
@@ -60,19 +32,32 @@ function loadFromStorage() {
     movimientos = [];
   }
 
+  // config
   try {
     const rawCfg = localStorage.getItem(STORAGE_KEY_CONFIG);
-    if (rawCfg) config = { ...config, ...JSON.parse(rawCfg) };
+    if (rawCfg) {
+      const parsed = JSON.parse(rawCfg);
+      config = { ...config, ...parsed };
+    }
   } catch (e) {
     console.error("Error leyendo config:", e);
   }
 
+  // facturas
   try {
-    const rawInv = localStorage.getItem(STORAGE_KEY_FACTURAS);
-    facturas = rawInv ? JSON.parse(rawInv) : [];
+    const rawF = localStorage.getItem(STORAGE_KEY_FACTURAS);
+    facturas = rawF ? JSON.parse(rawF) : [];
   } catch (e) {
     console.error("Error leyendo facturas:", e);
     facturas = [];
+  }
+
+  // logo
+  try {
+    invoiceLogoBase64 = localStorage.getItem(STORAGE_KEY_INVOICE_LOGO);
+  } catch (e) {
+    console.error("Error leyendo logo factura:", e);
+    invoiceLogoBase64 = null;
   }
 }
 
@@ -106,21 +91,23 @@ function sameMonth(dateStr, dateRef) {
   return dateStr.slice(0, 7) === dateRef.slice(0, 7);
 }
 
-// ================== RENDER TOPBAR ==================
+// ===== TOPBAR FECHA =====
+
 function renderTopbarDate() {
   const el = document.getElementById("topbar-date");
   if (!el) return;
   const now = new Date();
-  const formato = now.toLocaleDateString("es-PR", {
+  const formatted = now.toLocaleDateString("es-PR", {
     weekday: "short",
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
-  el.textContent = formato;
+  el.textContent = formatted;
 }
 
-// ================== RENDER KPIs ==================
+// ===== KPIs =====
+
 function renderKpis() {
   const hoy = todayISO();
 
@@ -148,38 +135,37 @@ function renderKpis() {
   const balanceHoy = ingresosHoy - gastosHoy;
   const balanceMes = ingresosMes - gastosMes;
 
-  const kIngHoy = document.getElementById("kpi-ingresos-hoy");
-  const kGasHoy = document.getElementById("kpi-gastos-hoy");
-  const kBalHoy = document.getElementById("kpi-balance-hoy");
-  const kIngMes = document.getElementById("kpi-ingresos-mes");
-  const kGasMes = document.getElementById("kpi-gastos-mes");
-  const kBalMes = document.getElementById("kpi-balance-mes");
-  const kMovMes = document.getElementById("kpi-movimientos-mes");
-  const kUlt = document.getElementById("kpi-ultimo-movimiento");
+  const elIngHoy = document.getElementById("kpi-ingresos-hoy");
+  const elGasHoy = document.getElementById("kpi-gastos-hoy");
+  const elBalHoy = document.getElementById("kpi-balance-hoy");
+  const elIngMes = document.getElementById("kpi-ingresos-mes");
+  const elGasMes = document.getElementById("kpi-gastos-mes");
+  const elBalMes = document.getElementById("kpi-balance-mes");
+  const elMovMes = document.getElementById("kpi-movimientos-mes");
+  const elUlt = document.getElementById("kpi-ultimo-movimiento");
 
-  if (kIngHoy) kIngHoy.textContent = formatMoney(ingresosHoy);
-  if (kGasHoy) kGasHoy.textContent = formatMoney(gastosHoy);
-  if (kBalHoy) kBalHoy.textContent = formatMoney(balanceHoy);
-  if (kIngMes) kIngMes.textContent = `Mes actual: ${formatMoney(ingresosMes)}`;
-  if (kGasMes) kGasMes.textContent = `Mes actual: ${formatMoney(gastosMes)}`;
-  if (kBalMes) kBalMes.textContent = `Balance mes: ${formatMoney(balanceMes)}`;
-  if (kMovMes) {
-    kMovMes.textContent = movimientos.filter((m) => sameMonth(m.fecha, hoy)).length;
-  }
+  if (elIngHoy) elIngHoy.textContent = formatMoney(ingresosHoy);
+  if (elGasHoy) elGasHoy.textContent = formatMoney(gastosHoy);
+  if (elBalHoy) elBalHoy.textContent = formatMoney(balanceHoy);
+  if (elIngMes) elIngMes.textContent = `Mes actual: ${formatMoney(ingresosMes)}`;
+  if (elGasMes) elGasMes.textContent = `Mes actual: ${formatMoney(gastosMes)}`;
+  if (elBalMes) elBalMes.textContent = `Balance mes: ${formatMoney(balanceMes)}`;
+  if (elMovMes) elMovMes.textContent = movimientos.filter((m) => sameMonth(m.fecha, hoy)).length;
 
   const ultimo = [...movimientos].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-  if (kUlt) {
+  if (elUlt) {
     if (ultimo) {
       const tipoTxt = ultimo.tipo === "ingreso" ? "Ingreso" : "Gasto";
-      kUlt.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
+      elUlt.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
     } else {
-      kUlt.textContent = "Sin movimientos recientes";
+      elUlt.textContent = "Sin movimientos recientes";
     }
   }
 }
 
-// ================== RENDER TABLAS MOVIMIENTOS ==================
-function buildRow(m) {
+// ===== TABLAS INGRESOS / GASTOS =====
+
+function buildRowMovimiento(m) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td>${m.fecha || ""}</td>
@@ -213,14 +199,16 @@ function renderTablas() {
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 10);
 
-  recientesIng.forEach((m) => tbodyIng && tbodyIng.appendChild(buildRow(m)));
-  recientesGas.forEach((m) => tbodyGas && tbodyGas.appendChild(buildRow(m)));
-  ingresos.forEach((m) => tbodyIngFull && tbodyIngFull.appendChild(buildRow(m)));
-  gastos.forEach((m) => tbodyGasFull && tbodyGasFull.appendChild(buildRow(m)));
+  recientesIng.forEach((m) => tbodyIng && tbodyIng.appendChild(buildRowMovimiento(m)));
+  recientesGas.forEach((m) => tbodyGas && tbodyGas.appendChild(buildRowMovimiento(m)));
+
+  ingresos.forEach((m) => tbodyIngFull && tbodyIngFull.appendChild(buildRowMovimiento(m)));
+  gastos.forEach((m) => tbodyGasFull && tbodyGasFull.appendChild(buildRowMovimiento(m)));
 }
 
-// ================== MODAL MOVIMIENTO ==================
-const modal = {
+// ===== MODAL MOVIMIENTO =====
+
+const modalMovimiento = {
   backdrop: null,
   tipoInput: null,
   fechaInput: null,
@@ -234,11 +222,7 @@ const modal = {
     if (!this.backdrop) return;
     this.tipoInput.value = tipo || "ingreso";
     this.titleEl.textContent = tipo === "gasto" ? "Nuevo gasto" : "Nuevo ingreso";
-
-    if (!this.fechaInput.value) {
-      this.fechaInput.value = todayISO();
-    }
-
+    if (!this.fechaInput.value) this.fechaInput.value = todayISO();
     this.backdrop.classList.add("show");
   },
 
@@ -248,39 +232,38 @@ const modal = {
   },
 };
 
-function setupModal() {
-  modal.backdrop = document.getElementById("modal-movimiento");
-  modal.tipoInput = document.getElementById("mov-tipo");
-  modal.fechaInput = document.getElementById("mov-fecha");
-  modal.descInput = document.getElementById("mov-descripcion");
-  modal.catInput = document.getElementById("mov-categoria");
-  modal.metodoInput = document.getElementById("mov-metodo");
-  modal.montoInput = document.getElementById("mov-monto");
-  modal.titleEl = document.getElementById("modal-title");
+function setupModalMovimiento() {
+  modalMovimiento.backdrop = document.getElementById("modal-movimiento");
+  modalMovimiento.tipoInput = document.getElementById("mov-tipo");
+  modalMovimiento.fechaInput = document.getElementById("mov-fecha");
+  modalMovimiento.descInput = document.getElementById("mov-descripcion");
+  modalMovimiento.catInput = document.getElementById("mov-categoria");
+  modalMovimiento.metodoInput = document.getElementById("mov-metodo");
+  modalMovimiento.montoInput = document.getElementById("mov-monto");
+  modalMovimiento.titleEl = document.getElementById("modal-title");
 
-  document.getElementById("btn-add-movimiento")?.addEventListener("click", () => {
-    modal.open("ingreso");
-  });
+  const btnAddMov = document.getElementById("btn-add-movimiento");
+  btnAddMov?.addEventListener("click", () => modalMovimiento.open("ingreso"));
 
   document.querySelectorAll("[data-add]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tipo = btn.getAttribute("data-add") === "gasto" ? "gasto" : "ingreso";
-      modal.open(tipo);
+      modalMovimiento.open(tipo);
     });
   });
 
-  document.getElementById("modal-close")?.addEventListener("click", () => modal.close());
-  document.getElementById("modal-cancel")?.addEventListener("click", () => modal.close());
+  document.getElementById("modal-close")?.addEventListener("click", () => modalMovimiento.close());
+  document.getElementById("modal-cancel")?.addEventListener("click", () => modalMovimiento.close());
 
   const form = document.getElementById("form-movimiento");
   form?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const tipo = modal.tipoInput.value;
-    const fecha = modal.fechaInput.value || todayISO();
-    const descripcion = modal.descInput.value.trim();
-    const categoria = modal.catInput.value.trim();
-    const metodo = modal.metodoInput.value;
-    const monto = Number(modal.montoInput.value);
+    const tipo = modalMovimiento.tipoInput.value;
+    const fecha = modalMovimiento.fechaInput.value || todayISO();
+    const descripcion = modalMovimiento.descInput.value.trim();
+    const categoria = modalMovimiento.catInput.value.trim();
+    const metodo = modalMovimiento.metodoInput.value;
+    const monto = Number(modalMovimiento.montoInput.value);
 
     if (!descripcion || !categoria || !metodo || !fecha || !monto) {
       alert("Completa todos los campos y coloca un monto válido.");
@@ -304,12 +287,13 @@ function setupModal() {
     renderTablas();
 
     form.reset();
-    modal.fechaInput.value = todayISO();
-    modal.close();
+    modalMovimiento.fechaInput.value = todayISO();
+    modalMovimiento.close();
   });
 }
 
-// ================== NAV ==================
+// ===== NAVEGACIÓN =====
+
 function setupNavigation() {
   const navItems = document.querySelectorAll(".nav-item");
   const sections = document.querySelectorAll(".section");
@@ -317,7 +301,6 @@ function setupNavigation() {
   navItems.forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.getAttribute("data-section");
-
       navItems.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
 
@@ -332,7 +315,8 @@ function setupNavigation() {
   });
 }
 
-// ================== EXPORT CSV ==================
+// ===== EXPORT CSV MOVIMIENTOS =====
+
 function movimientosToCsv(rows) {
   const header = ["tipo", "fecha", "descripcion", "categoria", "metodo", "monto"];
   const lines = [header.join(",")];
@@ -364,7 +348,7 @@ function downloadCsv(filename, csv) {
   URL.revokeObjectURL(url);
 }
 
-function setupExportButtons() {
+function setupExportButtonsMovimientos() {
   document.getElementById("btn-export-ingresos")?.addEventListener("click", () => {
     const ingresos = movimientos.filter((m) => m.tipo === "ingreso");
     const csv = movimientosToCsv(ingresos);
@@ -383,540 +367,434 @@ function setupExportButtons() {
   });
 }
 
-// ================== CONFIG LOCAL + LOGO ==================
-function renderLogoPreview() {
-  const preview = document.getElementById("invoice-logo-preview");
-  if (!preview) return;
-  preview.innerHTML = "";
-
-  if (config.invoiceLogoDataUrl) {
-    const img = document.createElement("img");
-    img.src = config.invoiceLogoDataUrl;
-    img.alt = "Logo facturas";
-    img.className = "invoice-logo-img";
-    preview.appendChild(img);
-  } else {
-    const span = document.createElement("span");
-    span.className = "muted";
-    span.textContent = "No hay logo configurado.";
-    preview.appendChild(span);
-  }
-}
+// ===== CONFIG + LOGO =====
 
 function setupConfig() {
   const nombreInput = document.getElementById("config-nombre-negocio");
   const monedaInput = document.getElementById("config-moneda");
-  const companyIdInput = document.getElementById("config-company-id");
-  const companyAddressInput = document.getElementById("config-company-address");
-  const companyPhoneInput = document.getElementById("config-company-phone");
-  const companyEmailInput = document.getElementById("config-company-email");
-  const logoInput = document.getElementById("invoice-logo-input");
+  const dirInput = document.getElementById("config-empresa-direccion");
+  const telInput = document.getElementById("config-empresa-telefono");
+  const emailInput = document.getElementById("config-empresa-email");
 
   if (nombreInput) nombreInput.value = config.nombreNegocio || "";
   if (monedaInput) monedaInput.value = config.moneda || "$";
-  if (companyIdInput) companyIdInput.value = config.companyId || "";
-  if (companyAddressInput) companyAddressInput.value = config.companyAddress || "";
-  if (companyPhoneInput) companyPhoneInput.value = config.companyPhone || "";
-  if (companyEmailInput) companyEmailInput.value = config.companyEmail || "";
-
-  renderLogoPreview();
+  if (dirInput) dirInput.value = config.empresaDireccion || "";
+  if (telInput) telInput.value = config.empresaTelefono || "";
+  if (emailInput) emailInput.value = config.empresaEmail || "";
 
   document.getElementById("btn-guardar-config")?.addEventListener("click", () => {
     if (nombreInput) config.nombreNegocio = nombreInput.value.trim();
     if (monedaInput) config.moneda = monedaInput.value.trim() || "$";
-    if (companyIdInput) config.companyId = companyIdInput.value.trim();
-    if (companyAddressInput) config.companyAddress = companyAddressInput.value.trim();
-    if (companyPhoneInput) config.companyPhone = companyPhoneInput.value.trim();
-    if (companyEmailInput) config.companyEmail = companyEmailInput.value.trim();
-
+    if (dirInput) config.empresaDireccion = dirInput.value.trim();
+    if (telInput) config.empresaTelefono = telInput.value.trim();
+    if (emailInput) config.empresaEmail = emailInput.value.trim();
     saveConfig();
     renderKpis();
     alert("Configuración guardada.");
   });
 
-  logoInput?.addEventListener("change", (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result;
-      if (typeof result === "string") {
-        config.invoiceLogoDataUrl = result;
-        saveConfig();
-        renderLogoPreview();
-      }
-    };
-    reader.readAsDataURL(file);
-  });
+  setupInvoiceLogo();
 }
 
-// ================== FACTURAS ==================
-let editingInvoiceId = null;
+function setupInvoiceLogo() {
+  const inputFile = document.getElementById("invoice-logo-input");
+  const img = document.getElementById("invoice-logo-preview-img");
+  const emptyTxt = document.getElementById("invoice-logo-empty");
 
-function newInvoiceItemRow(item = {}) {
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td>
-      <input type="text" class="inv-item-desc" placeholder="Descripción" value="${item.descripcion || ""}">
-    </td>
-    <td class="right">
-      <input type="number" class="inv-item-qty" min="0" step="0.01" value="${item.cantidad ?? 1}">
-    </td>
-    <td class="right">
-      <input type="number" class="inv-item-price" min="0" step="0.01" value="${item.precio ?? 0}">
-    </td>
-    <td class="right">
-      <span class="inv-item-total">${formatMoney(item.total || 0)}</span>
-    </td>
-    <td class="right">
-      <button type="button" class="btn-mini-outline inv-item-remove">✕</button>
-    </td>
-  `;
-  return tr;
-}
-
-function recalcInvoiceItemsTotals() {
-  const tbody = document.getElementById("invoice-items-body");
-  if (!tbody) return;
-  const rows = Array.from(tbody.querySelectorAll("tr"));
-
-  let subtotal = 0;
-  rows.forEach((row) => {
-    const qtyInput = row.querySelector(".inv-item-qty");
-    const priceInput = row.querySelector(".inv-item-price");
-    const totalSpan = row.querySelector(".inv-item-total");
-
-    const qty = Number(qtyInput?.value) || 0;
-    const price = Number(priceInput?.value) || 0;
-    const lineTotal = qty * price;
-    subtotal += lineTotal;
-    if (totalSpan) totalSpan.textContent = formatMoney(lineTotal);
-  });
-
-  const taxRateInput = document.getElementById("invoice-tax-rate");
-  const subtotalEl = document.getElementById("invoice-subtotal-display");
-  const totalEl = document.getElementById("invoice-total-display");
-
-  const taxRate = Number(taxRateInput?.value) || 0;
-  const impuestos = subtotal * (taxRate / 100);
-  const total = subtotal + impuestos;
-
-  if (subtotalEl) subtotalEl.textContent = formatMoney(subtotal);
-  if (totalEl) totalEl.textContent = formatMoney(total);
-}
-
-function clearInvoiceModal() {
-  editingInvoiceId = null;
-
-  const numberInput = document.getElementById("invoice-number");
-  const dateInput = document.getElementById("invoice-date");
-  const dueInput = document.getElementById("invoice-due");
-  const clientNameInput = document.getElementById("invoice-client-name");
-  const clientEmailInput = document.getElementById("invoice-client-email");
-  const clientPhoneInput = document.getElementById("invoice-client-phone");
-  const notesInput = document.getElementById("invoice-notes");
-  const taxRateInput = document.getElementById("invoice-tax-rate");
-  const tbody = document.getElementById("invoice-items-body");
-
-  if (numberInput) numberInput.value = "";
-  if (dateInput) dateInput.value = todayISO();
-  if (dueInput) dueInput.value = "";
-  if (clientNameInput) clientNameInput.value = "";
-  if (clientEmailInput) clientEmailInput.value = "";
-  if (clientPhoneInput) clientPhoneInput.value = "";
-  if (notesInput) notesInput.value = "";
-  if (taxRateInput) taxRateInput.value = "0";
-  if (tbody) tbody.innerHTML = "";
-
-  // Añadimos 2 filas por defecto
-  if (tbody) {
-    tbody.appendChild(newInvoiceItemRow());
-    tbody.appendChild(newInvoiceItemRow());
-  }
-
-  recalcInvoiceItemsTotals();
-}
-
-function fillInvoiceModal(factura) {
-  editingInvoiceId = factura.id;
-
-  const numberInput = document.getElementById("invoice-number");
-  const dateInput = document.getElementById("invoice-date");
-  const dueInput = document.getElementById("invoice-due");
-  const clientNameInput = document.getElementById("invoice-client-name");
-  const clientEmailInput = document.getElementById("invoice-client-email");
-  const clientPhoneInput = document.getElementById("invoice-client-phone");
-  const notesInput = document.getElementById("invoice-notes");
-  const taxRateInput = document.getElementById("invoice-tax-rate");
-  const tbody = document.getElementById("invoice-items-body");
-
-  if (numberInput) numberInput.value = factura.numero || "";
-  if (dateInput) dateInput.value = factura.fecha || todayISO();
-  if (dueInput) dueInput.value = factura.vencimiento || "";
-  if (clientNameInput) clientNameInput.value = factura.clienteNombre || "";
-  if (clientEmailInput) clientEmailInput.value = factura.clienteEmail || "";
-  if (clientPhoneInput) clientPhoneInput.value = factura.clienteTelefono || "";
-  if (notesInput) notesInput.value = factura.notas || "";
-  if (taxRateInput) taxRateInput.value = factura.taxRate ?? 0;
-
-  if (tbody) {
-    tbody.innerHTML = "";
-    (factura.items || []).forEach((it) => {
-      tbody.appendChild(
-        newInvoiceItemRow({
-          descripcion: it.descripcion,
-          cantidad: it.cantidad,
-          precio: it.precio,
-          total: it.total,
-        })
-      );
-    });
-    if ((factura.items || []).length === 0) {
-      tbody.appendChild(newInvoiceItemRow());
+  function refreshPreview() {
+    if (invoiceLogoBase64 && img && emptyTxt) {
+      img.src = invoiceLogoBase64;
+      img.style.display = "block";
+      emptyTxt.style.display = "none";
+    } else if (img && emptyTxt) {
+      img.style.display = "none";
+      emptyTxt.style.display = "inline";
     }
   }
 
-  recalcInvoiceItemsTotals();
-}
-
-function openInvoiceModal(factura = null) {
-  const backdrop = document.getElementById("modal-invoice");
-  const title = document.getElementById("invoice-modal-title");
-  if (!backdrop || !title) return;
-
-  if (factura) {
-    title.textContent = "Editar factura";
-    fillInvoiceModal(factura);
-  } else {
-    title.textContent = "Nueva factura";
-    clearInvoiceModal();
+  if (inputFile) {
+    inputFile.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        invoiceLogoBase64 = ev.target.result;
+        localStorage.setItem(STORAGE_KEY_INVOICE_LOGO, invoiceLogoBase64);
+        refreshPreview();
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
-  backdrop.classList.add("show");
+  refreshPreview();
 }
 
-function closeInvoiceModal() {
-  const backdrop = document.getElementById("modal-invoice");
-  if (!backdrop) return;
-  backdrop.classList.remove("show");
+// ===== LOGOUT PLACEHOLDER =====
+
+function setupLogout() {
+  const btn = document.getElementById("btn-logout");
+  btn?.addEventListener("click", () => {
+    alert("Aquí puedes implementar un login real en el futuro. Por ahora solo cierra la pestaña.");
+  });
 }
 
-function collectInvoiceFromForm() {
-  const numberInput = document.getElementById("invoice-number");
-  const dateInput = document.getElementById("invoice-date");
-  const dueInput = document.getElementById("invoice-due");
-  const clientNameInput = document.getElementById("invoice-client-name");
-  const clientEmailInput = document.getElementById("invoice-client-email");
-  const clientPhoneInput = document.getElementById("invoice-client-phone");
-  const notesInput = document.getElementById("invoice-notes");
-  const taxRateInput = document.getElementById("invoice-tax-rate");
-  const tbody = document.getElementById("invoice-items-body");
+// ===== FACTURAS UI =====
 
-  const numero = numberInput?.value.trim() || "";
-  const fecha = dateInput?.value || todayISO();
-  const vencimiento = dueInput?.value || "";
-  const clienteNombre = clientNameInput?.value.trim() || "";
-  const clienteEmail = clientEmailInput?.value.trim() || "";
-  const clienteTelefono = clientPhoneInput?.value.trim() || "";
-  const notas = notesInput?.value.trim() || "";
-  const taxRate = Number(taxRateInput?.value) || 0;
+function setupFacturasUI() {
+  const btnNueva = document.getElementById("btn-nueva-factura");
+  const btnExportCsv = document.getElementById("btn-facturas-export-csv");
+  const modalBackdrop = document.getElementById("modal-factura");
+  const btnClose = document.getElementById("modal-factura-close");
+  const btnCancel = document.getElementById("modal-factura-cancel");
+  const btnGuardar = document.getElementById("btn-factura-guardar-sin-pdf");
+  const btnGuardarPdf = document.getElementById("btn-factura-guardar-pdf");
+  const btnAddItem = document.getElementById("btn-add-factura-item");
 
-  if (!numero || !clienteNombre) {
-    alert("Número de factura y nombre del cliente son obligatorios.");
+  function openFacturaModal(factura) {
+    const fechaInput = document.getElementById("fact-fecha");
+    const numeroInput = document.getElementById("fact-numero");
+    const clienteInput = document.getElementById("fact-cliente");
+    const dirCliInput = document.getElementById("fact-cliente-direccion");
+    const notasInput = document.getElementById("fact-notas");
+    const taxPercent = document.getElementById("fact-tax-percent");
+    const tbodyItems = document.getElementById("tbody-factura-items");
+
+    tbodyItems.innerHTML = "";
+
+    const hoy = todayISO();
+    fechaInput.value = factura?.fecha || hoy;
+    numeroInput.value = factura?.numero || String(facturas.length + 1).padStart(4, "0");
+    clienteInput.value = factura?.cliente || "";
+    dirCliInput.value = factura?.clienteDireccion || "";
+    notasInput.value = factura?.notas || "";
+    taxPercent.value = factura?.taxPercent ?? 0;
+
+    const items = factura?.items?.length ? factura.items : [{ descripcion: "", cantidad: 1, precio: 0 }];
+
+    items.forEach((it) => addFacturaItemRow(it.descripcion, it.cantidad, it.precio));
+
+    recalcFacturaTotals();
+    modalBackdrop.classList.add("show");
+  }
+
+  function closeFacturaModal() {
+    modalBackdrop.classList.remove("show");
+  }
+
+  btnNueva?.addEventListener("click", () => openFacturaModal(null));
+  btnClose?.addEventListener("click", closeFacturaModal);
+  btnCancel?.addEventListener("click", closeFacturaModal);
+  btnAddItem?.addEventListener("click", () => addFacturaItemRow("", 1, 0));
+
+  btnGuardar?.addEventListener("click", () => {
+    const factura = collectFacturaFromModal();
+    if (!factura) return;
+    facturas.push(factura);
+    saveFacturas();
+    renderFacturasTable();
+    closeFacturaModal();
+  });
+
+  btnGuardarPdf?.addEventListener("click", () => {
+    const factura = collectFacturaFromModal();
+    if (!factura) return;
+    facturas.push(factura);
+    saveFacturas();
+    renderFacturasTable();
+    generateFacturaPdf(factura);
+    closeFacturaModal();
+  });
+
+  btnExportCsv?.addEventListener("click", () => {
+    const header = ["numero", "fecha", "cliente", "total"];
+    const lines = [header.join(",")];
+    facturas.forEach((f) => {
+      lines.push([f.numero, f.fecha, `"${(f.cliente || "").replace(/"/g, '""')}"`, f.total.toFixed(2)].join(","));
+    });
+    const csv = lines.join("\n");
+    downloadCsv("facturas.csv", csv);
+  });
+
+  document.getElementById("tbody-facturas")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-fact-pdf]");
+    if (!btn) return;
+    const id = btn.getAttribute("data-fact-pdf");
+    const f = facturas.find((x) => x.id === id);
+    if (!f) return;
+    generateFacturaPdf(f);
+  });
+}
+
+function addFacturaItemRow(descripcion, cantidad, precio) {
+  const tbody = document.getElementById("tbody-factura-items");
+  if (!tbody) return;
+  const tr = document.createElement("tr");
+
+  tr.innerHTML = `
+    <td><input class="inv-item-desc" type="text" value="${descripcion || ""}"></td>
+    <td><input class="inv-item-qty" type="number" min="0" step="1" value="${cantidad || 1}"></td>
+    <td><input class="inv-item-price" type="number" min="0" step="0.01" value="${precio || 0}"></td>
+    <td class="right inv-item-total">0.00</td>
+    <td><button type="button" class="btn-mini-outline inv-item-remove">X</button></td>
+  `;
+
+  tbody.appendChild(tr);
+
+  const qtyInput = tr.querySelector(".inv-item-qty");
+  const priceInput = tr.querySelector(".inv-item-price");
+  const descInput = tr.querySelector(".inv-item-desc");
+  const btnRemove = tr.querySelector(".inv-item-remove");
+
+  [qtyInput, priceInput, descInput].forEach((inp) => {
+    inp.addEventListener("input", recalcFacturaTotals);
+  });
+
+  btnRemove.addEventListener("click", () => {
+    tr.remove();
+    recalcFacturaTotals();
+  });
+
+  recalcFacturaTotals();
+}
+
+function recalcFacturaTotals() {
+  const rows = document.querySelectorAll("#tbody-factura-items tr");
+  let subtotal = 0;
+
+  rows.forEach((tr) => {
+    const qty = Number(tr.querySelector(".inv-item-qty")?.value || 0);
+    const price = Number(tr.querySelector(".inv-item-price")?.value || 0);
+    const total = qty * price;
+    subtotal += total;
+    const tdTotal = tr.querySelector(".inv-item-total");
+    if (tdTotal) tdTotal.textContent = total.toFixed(2);
+  });
+
+  const taxPercentInput = document.getElementById("fact-tax-percent");
+  const taxPercent = Number(taxPercentInput?.value || 0);
+  const taxAmount = subtotal * (taxPercent / 100);
+  const total = subtotal + taxAmount;
+
+  const elSub = document.getElementById("fact-subtotal");
+  const elTaxAmt = document.getElementById("fact-tax-amount");
+  const elTotal = document.getElementById("fact-total");
+
+  if (elSub) elSub.textContent = formatMoney(subtotal);
+  if (elTaxAmt) elTaxAmt.textContent = formatMoney(taxAmount);
+  if (elTotal) elTotal.textContent = formatMoney(total);
+}
+
+function collectFacturaFromModal() {
+  const numeroInput = document.getElementById("fact-numero");
+  const fechaInput = document.getElementById("fact-fecha");
+  const clienteInput = document.getElementById("fact-cliente");
+  const dirCliInput = document.getElementById("fact-cliente-direccion");
+  const notasInput = document.getElementById("fact-notas");
+  const taxPercentInput = document.getElementById("fact-tax-percent");
+
+  const rows = document.querySelectorAll("#tbody-factura-items tr");
+  const items = [];
+  rows.forEach((tr) => {
+    const desc = tr.querySelector(".inv-item-desc")?.value.trim() || "";
+    const qty = Number(tr.querySelector(".inv-item-qty")?.value || 0);
+    const price = Number(tr.querySelector(".inv-item-price")?.value || 0);
+    if (!desc && qty === 0 && price === 0) return;
+    items.push({ descripcion: desc, cantidad: qty, precio: price });
+  });
+
+  if (!numeroInput.value.trim()) {
+    alert("Escribe un número de factura.");
+    return null;
+  }
+  if (!clienteInput.value.trim()) {
+    alert("Escribe el nombre del cliente.");
+    return null;
+  }
+  if (!items.length) {
+    alert("Añade al menos una línea a la factura.");
     return null;
   }
 
-  const rows = Array.from(tbody?.querySelectorAll("tr") || []);
-  const items = [];
   let subtotal = 0;
-
-  rows.forEach((row) => {
-    const descInput = row.querySelector(".inv-item-desc");
-    const qtyInput = row.querySelector(".inv-item-qty");
-    const priceInput = row.querySelector(".inv-item-price");
-
-    const descripcion = descInput?.value.trim() || "";
-    const cantidad = Number(qtyInput?.value) || 0;
-    const precio = Number(priceInput?.value) || 0;
-    const total = cantidad * precio;
-
-    if (!descripcion && total === 0) {
-      return; // línea vacía
-    }
-
-    items.push({
-      descripcion,
-      cantidad,
-      precio,
-      total,
-    });
-
-    subtotal += total;
+  items.forEach((it) => {
+    subtotal += (it.cantidad || 0) * (it.precio || 0);
   });
-
-  const impuestos = subtotal * (taxRate / 100);
-  const total = subtotal + impuestos;
+  const taxPercent = Number(taxPercentInput.value || 0);
+  const taxAmount = subtotal * (taxPercent / 100);
+  const total = subtotal + taxAmount;
 
   return {
-    id: editingInvoiceId || Date.now().toString(),
-    numero,
-    fecha,
-    vencimiento,
-    clienteNombre,
-    clienteEmail,
-    clienteTelefono,
-    notas,
+    id: Date.now().toString(),
+    numero: numeroInput.value.trim(),
+    fecha: fechaInput.value || todayISO(),
+    cliente: clienteInput.value.trim(),
+    clienteDireccion: dirCliInput.value.trim(),
+    notas: notasInput.value.trim(),
     items,
     subtotal,
-    impuestos,
+    taxPercent,
+    taxAmount,
     total,
-    taxRate,
-    estado: "Borrador",
-    createdAt: editingInvoiceId
-      ? facturas.find((f) => f.id === editingInvoiceId)?.createdAt || Date.now()
-      : Date.now(),
-    updatedAt: Date.now(),
+    createdAt: Date.now(),
   };
 }
 
-function renderFacturas() {
+function renderFacturasTable() {
   const tbody = document.getElementById("tbody-facturas");
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const ordered = facturas.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const ordenadas = [...facturas].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-  ordered.forEach((f) => {
+  ordenadas.forEach((f) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${f.numero || ""}</td>
-      <td>${f.fecha || ""}</td>
-      <td>${f.clienteNombre || ""}</td>
+      <td>${f.numero}</td>
+      <td>${f.fecha}</td>
+      <td>${f.cliente}</td>
       <td class="right">${formatMoney(f.total || 0)}</td>
-      <td>${f.estado || "Borrador"}</td>
-      <td class="right">
-        <button type="button" class="btn-mini" data-inv-edit="${f.id}">Editar</button>
-        <button type="button" class="btn-mini-outline" data-inv-delete="${f.id}">Borrar</button>
+      <td>
+        <button type="button" class="btn-mini-outline" data-fact-pdf="${f.id}">
+          PDF
+        </button>
       </td>
     `;
     tbody.appendChild(tr);
   });
-
-  // Listeners para editar / borrar
-  tbody.querySelectorAll("[data-inv-edit]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-inv-edit");
-      const factura = facturas.find((f) => f.id === id);
-      if (factura) {
-        openInvoiceModal(factura);
-      }
-    });
-  });
-
-  tbody.querySelectorAll("[data-inv-delete]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-inv-delete");
-      if (!id) return;
-      if (!confirm("¿Eliminar esta factura definitivamente?")) return;
-      facturas = facturas.filter((f) => f.id !== id);
-      saveFacturas();
-      renderFacturas();
-    });
-  });
 }
 
-function setupInvoiceModule() {
-  const btnNew = document.getElementById("btn-new-invoice");
-  const btnAddItem = document.getElementById("btn-add-invoice-item");
-  const taxRateInput = document.getElementById("invoice-tax-rate");
-  const backdrop = document.getElementById("modal-invoice");
-  const btnClose = document.getElementById("invoice-modal-close");
-  const btnCancel = document.getElementById("invoice-modal-cancel");
-  const form = document.getElementById("invoice-form");
-  const itemsBody = document.getElementById("invoice-items-body");
+// ===== PDF FACTURA (jsPDF) =====
 
-  btnNew?.addEventListener("click", () => openInvoiceModal(null));
-
-  btnAddItem?.addEventListener("click", () => {
-    if (!itemsBody) return;
-    itemsBody.appendChild(newInvoiceItemRow());
-    recalcInvoiceItemsTotals();
-  });
-
-  // Recalcular totales cuando cambien cantidad / precio / tax
-  itemsBody?.addEventListener("input", (e) => {
-    if (
-      e.target.classList.contains("inv-item-qty") ||
-      e.target.classList.contains("inv-item-price")
-    ) {
-      recalcInvoiceItemsTotals();
-    }
-  });
-
-  itemsBody?.addEventListener("click", (e) => {
-    const target = e.target;
-    if (target.classList.contains("inv-item-remove")) {
-      const row = target.closest("tr");
-      if (row) {
-        row.remove();
-        recalcInvoiceItemsTotals();
-      }
-    }
-  });
-
-  taxRateInput?.addEventListener("input", () => {
-    recalcInvoiceItemsTotals();
-  });
-
-  btnClose?.addEventListener("click", () => closeInvoiceModal());
-  btnCancel?.addEventListener("click", () => closeInvoiceModal());
-
-  form?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const factura = collectInvoiceFromForm();
-    if (!factura) return;
-
-    const index = facturas.findIndex((f) => f.id === factura.id);
-    if (index >= 0) {
-      facturas[index] = factura;
-    } else {
-      facturas.push(factura);
-    }
-
-    saveFacturas();
-    renderFacturas();
-    closeInvoiceModal();
-  });
-}
-
-// ================== CLOUD / FIRESTORE ==================
-function updateCloudUI() {
-  const statusEl = document.getElementById("cloud-status");
-  const btnLogin = document.getElementById("btn-login");
-  const btnLogout = document.getElementById("btn-logout");
-
-  if (!statusEl || !btnLogin || !btnLogout) return;
-
-  if (currentUser) {
-    statusEl.textContent =
-      currentUser.displayName || currentUser.email || "Conectado";
-    btnLogin.style.display = "none";
-    btnLogout.style.display = "inline-flex";
-  } else {
-    statusEl.textContent = "Sin conexión";
-    btnLogin.style.display = "inline-flex";
-    btnLogout.style.display = "none";
-  }
-}
-
-function getCloudDocRef() {
-  if (!currentUser) throw new Error("No hay usuario autenticado.");
-  return doc(db, "users", currentUser.uid, "state", "app");
-}
-
-async function cloudPushReplace() {
-  if (!currentUser) {
-    alert("Primero inicia sesión con Google.");
+function generateFacturaPdf(factura) {
+  if (!window.jspdf) {
+    alert("jsPDF no está cargado.");
     return;
   }
-  try {
-    const ref = getCloudDocRef();
-    await setDoc(
-      ref,
-      {
-        uid: currentUser.uid,
-        movimientos,
-        facturas,
-        config,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
-    alert("Datos (movimientos, facturas, config) guardados en la nube.");
-  } catch (err) {
-    console.error("Error en cloudPushReplace:", err);
-    alert("Error al guardar en la nube: " + (err.code || err.message));
-  }
-}
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF("p", "mm", "letter");
 
-async function cloudPullReplace() {
-  if (!currentUser) {
-    alert("Primero inicia sesión con Google.");
-    return;
-  }
-  try {
-    const ref = getCloudDocRef();
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      alert("No hay datos en la nube todavía.");
-      return;
-    }
-    const data = snap.data();
-    movimientos = Array.isArray(data.movimientos) ? data.movimientos : [];
-    facturas = Array.isArray(data.facturas) ? data.facturas : [];
-    config = { ...config, ...(data.config || {}) };
+  const marginLeft = 15;
+  let cursorY = 18;
 
-    saveMovimientos();
-    saveFacturas();
-    saveConfig();
-
-    setupConfig();
-    renderKpis();
-    renderTablas();
-    renderFacturas();
-    alert("Datos cargados desde la nube.");
-  } catch (err) {
-    console.error("Error en cloudPullReplace:", err);
-    alert("Error al leer de la nube: " + (err.code || err.message));
-  }
-}
-
-function setupCloudAuth() {
-  const btnLogin = document.getElementById("btn-login");
-  const btnLogout = document.getElementById("btn-logout");
-
-  btnLogin?.addEventListener("click", async () => {
+  // Logo
+  if (invoiceLogoBase64) {
     try {
-      await signInWithPopup(auth, provider);
-      // onAuthStateChanged manejará el resto
+      doc.addImage(invoiceLogoBase64, "PNG", marginLeft, 10, 40, 20);
     } catch (e) {
-      console.error("Error en login:", e);
-      alert("No se pudo iniciar sesión: " + (e.code || e.message));
+      console.warn("Error añadiendo logo:", e);
     }
+  }
+
+  // Datos negocio
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  const nombre = config.nombreNegocio || "Mi negocio";
+  const dir = config.empresaDireccion || "";
+  const tel = config.empresaTelefono || "";
+  const email = config.empresaEmail || "";
+
+  doc.text(nombre, 110, 18);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+
+  const empresaLines = [];
+  if (dir) empresaLines.push(dir);
+  if (tel) empresaLines.push("Tel: " + tel);
+  if (email) empresaLines.push("Email: " + email);
+
+  empresaLines.forEach((line, i) => {
+    doc.text(line, 110, 24 + i * 5);
   });
 
-  btnLogout?.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.error("Error al cerrar sesión:", e);
-    }
+  // Título
+  cursorY = 50;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("FACTURA", marginLeft, cursorY);
+  cursorY += 8;
+
+  // Datos factura + cliente
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Factura: ${factura.numero}`, marginLeft, cursorY);
+  doc.text(`Fecha: ${factura.fecha}`, marginLeft, cursorY + 5);
+
+  const clienteBlockY = cursorY;
+  doc.text("Facturar a:", 110, clienteBlockY);
+  doc.text(factura.cliente || "", 110, clienteBlockY + 5);
+  if (factura.clienteDireccion) {
+    const cliDirLines = doc.splitTextToSize(factura.clienteDireccion, 80);
+    doc.text(cliDirLines, 110, clienteBlockY + 10);
+  }
+
+  cursorY += 18;
+
+  // Tabla items
+  const startY = cursorY;
+  doc.setFont("helvetica", "bold");
+  doc.text("Descripción", marginLeft, startY);
+  doc.text("Cant.", 120, startY);
+  doc.text("Precio", 140, startY);
+  doc.text("Total", 170, startY);
+
+  doc.setDrawColor(0);
+  doc.line(marginLeft, startY + 2, 195 - marginLeft, startY + 2);
+
+  doc.setFont("helvetica", "normal");
+  cursorY = startY + 8;
+
+  factura.items.forEach((it) => {
+    const descLines = doc.splitTextToSize(it.descripcion || "", 90);
+    const lineHeight = 5 * descLines.length;
+    const totalLinea = (it.cantidad || 0) * (it.precio || 0);
+
+    doc.text(descLines, marginLeft, cursorY);
+    doc.text(String(it.cantidad || 0), 120, cursorY);
+    doc.text(formatMoney(it.precio || 0), 140, cursorY);
+    doc.text(formatMoney(totalLinea), 170, cursorY);
+
+    cursorY += lineHeight + 2;
   });
 
-  onAuthStateChanged(auth, (user) => {
-    currentUser = user || null;
-    updateCloudUI();
-  });
+  // Totales
+  cursorY += 4;
+  doc.text("Subtotal:", 140, cursorY);
+  doc.text(formatMoney(factura.subtotal || 0), 180, cursorY, { align: "right" });
+
+  cursorY += 5;
+  doc.text(`Impuesto (${factura.taxPercent || 0}%):`, 140, cursorY);
+  doc.text(formatMoney(factura.taxAmount || 0), 180, cursorY, { align: "right" });
+
+  cursorY += 6;
+  doc.setFont("helvetica", "bold");
+  doc.text("Total:", 140, cursorY);
+  doc.text(formatMoney(factura.total || 0), 180, cursorY, { align: "right" });
+
+  // Notas
+  cursorY += 12;
+  if (factura.notas) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Notas:", marginLeft, cursorY);
+    const notasLines = doc.splitTextToSize(factura.notas, 180 - marginLeft * 2);
+    doc.text(notasLines, marginLeft, cursorY + 5);
+  }
+
+  doc.save(`Factura-${factura.numero}.pdf`);
 }
 
-function setupCloudButtons() {
-  document.getElementById("btn-cloud-push")?.addEventListener("click", cloudPushReplace);
-  document.getElementById("btn-cloud-pull")?.addEventListener("click", cloudPullReplace);
-}
+// ===== INIT =====
 
-// ================== INIT ==================
 document.addEventListener("DOMContentLoaded", () => {
   loadFromStorage();
   renderTopbarDate();
   setupNavigation();
-  setupModal();
-  setupExportButtons();
+  setupModalMovimiento();
+  setupExportButtonsMovimientos();
   setupConfig();
-  setupInvoiceModule();
-  setupCloudAuth();
-  setupCloudButtons();
+  setupLogout();
+  setupFacturasUI();
   renderKpis();
   renderTablas();
-  renderFacturas();
+  renderFacturasTable();
 });
