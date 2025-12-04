@@ -1,18 +1,13 @@
-// app.js — Nexus Finance V4
-// Dashboard + LocalStorage + Firebase Auth + Sync Firestore
-// RECUERDA: <script type="module" src="app.js?v=4"></script> en index.html
-
-/* ==========================
-   1. Firebase (modular v10)
-   ========================== */
+// app.js — Nexus Finance v6
+// Movimientos + Facturas profesionales + Config + Firebase Cloud Sync
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
-  signOut,
   onAuthStateChanged,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
   getFirestore,
@@ -21,7 +16,7 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
-// ⚠️ Usa la misma config que tu proyecto de Firebase
+// ================== FIREBASE CONFIG ==================
 const firebaseConfig = {
   apiKey: "AIzaSyC66vv3-yaap1mV2n1GXRUopLqccobWqRE",
   authDomain: "finanzas-web-f4e05.firebaseapp.com",
@@ -33,24 +28,29 @@ const firebaseConfig = {
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
-const db   = getFirestore(fbApp);
+const db = getFirestore(fbApp);
 const provider = new GoogleAuthProvider();
 
-let currentUser = null; // usuario logueado
+let currentUser = null;
 
-/* ==========================
-   2. Estado local
-   ========================== */
-
-const STORAGE_KEY_MOVIMIENTOS = "nexus-finance-v4-movimientos";
-const STORAGE_KEY_CONFIG      = "nexus-finance-v4-config";
+// ================== LOCAL STORAGE ==================
+const STORAGE_KEY_MOVIMIENTOS = "nexus-finance-movimientos";
+const STORAGE_KEY_CONFIG = "nexus-finance-config";
+const STORAGE_KEY_FACTURAS = "nexus-finance-facturas";
 
 let movimientos = [];
+let facturas = [];
 let config = {
   nombreNegocio: "",
   moneda: "$",
+  companyId: "",
+  companyAddress: "",
+  companyPhone: "",
+  companyEmail: "",
+  invoiceLogoDataUrl: "", // base64 para logo facturas
 };
 
+// ====== UTILIDADES LOCAL ======
 function loadFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MOVIMIENTOS);
@@ -66,6 +66,14 @@ function loadFromStorage() {
   } catch (e) {
     console.error("Error leyendo config:", e);
   }
+
+  try {
+    const rawInv = localStorage.getItem(STORAGE_KEY_FACTURAS);
+    facturas = rawInv ? JSON.parse(rawInv) : [];
+  } catch (e) {
+    console.error("Error leyendo facturas:", e);
+    facturas = [];
+  }
 }
 
 function saveMovimientos() {
@@ -76,56 +84,50 @@ function saveConfig() {
   localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
 }
 
-/* ==========================
-   3. Utils
-   ========================== */
+function saveFacturas() {
+  localStorage.setItem(STORAGE_KEY_FACTURAS, JSON.stringify(facturas));
+}
 
 function formatMoney(value) {
   const num = Number(value) || 0;
-  const symbol = config.moneda || "$";
-  return `${symbol}${num.toFixed(2)}`;
+  return `${config.moneda || "$"}${num.toFixed(2)}`;
 }
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function sameDay(dateStr, ref) {
-  return dateStr === ref;
+function sameDay(dateStr, dateRef) {
+  return dateStr === dateRef;
 }
 
-function sameMonth(dateStr, ref) {
+function sameMonth(dateStr, dateRef) {
   if (!dateStr) return false;
-  return dateStr.slice(0, 7) === ref.slice(0, 7);
+  return dateStr.slice(0, 7) === dateRef.slice(0, 7);
 }
 
-/* ==========================
-   4. UI: Fecha topbar
-   ========================== */
-
+// ================== RENDER TOPBAR ==================
 function renderTopbarDate() {
   const el = document.getElementById("topbar-date");
   if (!el) return;
   const now = new Date();
-  el.textContent = now.toLocaleDateString("es-PR", {
+  const formato = now.toLocaleDateString("es-PR", {
     weekday: "short",
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
+  el.textContent = formato;
 }
 
-/* ==========================
-   5. KPIs Dashboard
-   ========================== */
-
+// ================== RENDER KPIs ==================
 function renderKpis() {
   const hoy = todayISO();
 
   let ingresosHoy = 0;
-  let gastosHoy   = 0;
+  let gastosHoy = 0;
   let ingresosMes = 0;
-  let gastosMes   = 0;
+  let gastosMes = 0;
 
   movimientos.forEach((m) => {
     if (!m.fecha) return;
@@ -145,42 +147,38 @@ function renderKpis() {
 
   const balanceHoy = ingresosHoy - gastosHoy;
   const balanceMes = ingresosMes - gastosMes;
-  const movimientosMes = movimientos.filter((m) => sameMonth(m.fecha, hoy)).length;
 
-  const elInHoy   = document.getElementById("kpi-ingresos-hoy");
-  const elGaHoy   = document.getElementById("kpi-gastos-hoy");
-  const elBaHoy   = document.getElementById("kpi-balance-hoy");
-  const elInMes   = document.getElementById("kpi-ingresos-mes");
-  const elGaMes   = document.getElementById("kpi-gastos-mes");
-  const elBaMes   = document.getElementById("kpi-balance-mes");
-  const elMovMes  = document.getElementById("kpi-movimientos-mes");
-  const elUltMov  = document.getElementById("kpi-ultimo-movimiento");
+  const kIngHoy = document.getElementById("kpi-ingresos-hoy");
+  const kGasHoy = document.getElementById("kpi-gastos-hoy");
+  const kBalHoy = document.getElementById("kpi-balance-hoy");
+  const kIngMes = document.getElementById("kpi-ingresos-mes");
+  const kGasMes = document.getElementById("kpi-gastos-mes");
+  const kBalMes = document.getElementById("kpi-balance-mes");
+  const kMovMes = document.getElementById("kpi-movimientos-mes");
+  const kUlt = document.getElementById("kpi-ultimo-movimiento");
 
-  if (elInHoy)  elInHoy.textContent  = formatMoney(ingresosHoy);
-  if (elGaHoy)  elGaHoy.textContent  = formatMoney(gastosHoy);
-  if (elBaHoy)  elBaHoy.textContent  = formatMoney(balanceHoy);
-  if (elInMes)  elInMes.textContent  = `Mes actual: ${formatMoney(ingresosMes)}`;
-  if (elGaMes)  elGaMes.textContent  = `Mes actual: ${formatMoney(gastosMes)}`;
-  if (elBaMes)  elBaMes.textContent  = `Balance mes: ${formatMoney(balanceMes)}`;
-  if (elMovMes) elMovMes.textContent = String(movimientosMes);
+  if (kIngHoy) kIngHoy.textContent = formatMoney(ingresosHoy);
+  if (kGasHoy) kGasHoy.textContent = formatMoney(gastosHoy);
+  if (kBalHoy) kBalHoy.textContent = formatMoney(balanceHoy);
+  if (kIngMes) kIngMes.textContent = `Mes actual: ${formatMoney(ingresosMes)}`;
+  if (kGasMes) kGasMes.textContent = `Mes actual: ${formatMoney(gastosMes)}`;
+  if (kBalMes) kBalMes.textContent = `Balance mes: ${formatMoney(balanceMes)}`;
+  if (kMovMes) {
+    kMovMes.textContent = movimientos.filter((m) => sameMonth(m.fecha, hoy)).length;
+  }
 
-  if (elUltMov) {
-    const ultimo = [...movimientos]
-      .slice()
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  const ultimo = [...movimientos].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  if (kUlt) {
     if (ultimo) {
       const tipoTxt = ultimo.tipo === "ingreso" ? "Ingreso" : "Gasto";
-      elUltMov.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
+      kUlt.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
     } else {
-      elUltMov.textContent = "Sin movimientos recientes";
+      kUlt.textContent = "Sin movimientos recientes";
     }
   }
 }
 
-/* ==========================
-   6. Tablas
-   ========================== */
-
+// ================== RENDER TABLAS MOVIMIENTOS ==================
 function buildRow(m) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
@@ -194,8 +192,8 @@ function buildRow(m) {
 }
 
 function renderTablas() {
-  const tbodyIng     = document.getElementById("tbody-ingresos");
-  const tbodyGas     = document.getElementById("tbody-gastos");
+  const tbodyIng = document.getElementById("tbody-ingresos");
+  const tbodyGas = document.getElementById("tbody-gastos");
   const tbodyIngFull = document.getElementById("tbody-ingresos-full");
   const tbodyGasFull = document.getElementById("tbody-gastos-full");
 
@@ -204,13 +202,12 @@ function renderTablas() {
   });
 
   const ingresos = movimientos.filter((m) => m.tipo === "ingreso");
-  const gastos   = movimientos.filter((m) => m.tipo === "gasto");
+  const gastos = movimientos.filter((m) => m.tipo === "gasto");
 
   const recientesIng = ingresos
     .slice()
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 10);
-
   const recientesGas = gastos
     .slice()
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -218,32 +215,30 @@ function renderTablas() {
 
   recientesIng.forEach((m) => tbodyIng && tbodyIng.appendChild(buildRow(m)));
   recientesGas.forEach((m) => tbodyGas && tbodyGas.appendChild(buildRow(m)));
-
   ingresos.forEach((m) => tbodyIngFull && tbodyIngFull.appendChild(buildRow(m)));
   gastos.forEach((m) => tbodyGasFull && tbodyGasFull.appendChild(buildRow(m)));
 }
 
-/* ==========================
-   7. Modal de movimiento
-   ========================== */
-
+// ================== MODAL MOVIMIENTO ==================
 const modal = {
-  backdrop:   null,
-  tipoInput:  null,
+  backdrop: null,
+  tipoInput: null,
   fechaInput: null,
-  descInput:  null,
-  catInput:   null,
-  metodoInput:null,
+  descInput: null,
+  catInput: null,
+  metodoInput: null,
   montoInput: null,
-  titleEl:    null,
+  titleEl: null,
 
   open(tipo) {
     if (!this.backdrop) return;
     this.tipoInput.value = tipo || "ingreso";
     this.titleEl.textContent = tipo === "gasto" ? "Nuevo gasto" : "Nuevo ingreso";
+
     if (!this.fechaInput.value) {
       this.fechaInput.value = todayISO();
     }
+
     this.backdrop.classList.add("show");
   },
 
@@ -254,21 +249,19 @@ const modal = {
 };
 
 function setupModal() {
-  modal.backdrop   = document.getElementById("modal-movimiento");
-  modal.tipoInput  = document.getElementById("mov-tipo");
+  modal.backdrop = document.getElementById("modal-movimiento");
+  modal.tipoInput = document.getElementById("mov-tipo");
   modal.fechaInput = document.getElementById("mov-fecha");
-  modal.descInput  = document.getElementById("mov-descripcion");
-  modal.catInput   = document.getElementById("mov-categoria");
-  modal.metodoInput= document.getElementById("mov-metodo");
+  modal.descInput = document.getElementById("mov-descripcion");
+  modal.catInput = document.getElementById("mov-categoria");
+  modal.metodoInput = document.getElementById("mov-metodo");
   modal.montoInput = document.getElementById("mov-monto");
-  modal.titleEl    = document.getElementById("modal-title");
+  modal.titleEl = document.getElementById("modal-title");
 
-  // botón topbar
   document.getElementById("btn-add-movimiento")?.addEventListener("click", () => {
     modal.open("ingreso");
   });
 
-  // botones dentro de secciones
   document.querySelectorAll("[data-add]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tipo = btn.getAttribute("data-add") === "gasto" ? "gasto" : "ingreso";
@@ -282,12 +275,12 @@ function setupModal() {
   const form = document.getElementById("form-movimiento");
   form?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const tipo        = modal.tipoInput.value;
-    const fecha       = modal.fechaInput.value || todayISO();
+    const tipo = modal.tipoInput.value;
+    const fecha = modal.fechaInput.value || todayISO();
     const descripcion = modal.descInput.value.trim();
-    const categoria   = modal.catInput.value.trim();
-    const metodo      = modal.metodoInput.value;
-    const monto       = Number(modal.montoInput.value);
+    const categoria = modal.catInput.value.trim();
+    const metodo = modal.metodoInput.value;
+    const monto = Number(modal.montoInput.value);
 
     if (!descripcion || !categoria || !metodo || !fecha || !monto) {
       alert("Completa todos los campos y coloca un monto válido.");
@@ -316,10 +309,7 @@ function setupModal() {
   });
 }
 
-/* ==========================
-   8. Navegación secciones
-   ========================== */
-
+// ================== NAV ==================
 function setupNavigation() {
   const navItems = document.querySelectorAll(".nav-item");
   const sections = document.querySelectorAll(".section");
@@ -342,10 +332,7 @@ function setupNavigation() {
   });
 }
 
-/* ==========================
-   9. Exportar CSV
-   ========================== */
-
+// ================== EXPORT CSV ==================
 function movimientosToCsv(rows) {
   const header = ["tipo", "fecha", "descripcion", "categoria", "metodo", "monto"];
   const lines = [header.join(",")];
@@ -368,9 +355,9 @@ function movimientosToCsv(rows) {
 function downloadCsv(filename, csv) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const a   = document.createElement("a");
-  a.href    = url;
-  a.download= filename;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -380,129 +367,452 @@ function downloadCsv(filename, csv) {
 function setupExportButtons() {
   document.getElementById("btn-export-ingresos")?.addEventListener("click", () => {
     const ingresos = movimientos.filter((m) => m.tipo === "ingreso");
-    downloadCsv("ingresos.csv", movimientosToCsv(ingresos));
+    const csv = movimientosToCsv(ingresos);
+    downloadCsv("ingresos.csv", csv);
   });
 
   document.getElementById("btn-export-gastos")?.addEventListener("click", () => {
     const gastos = movimientos.filter((m) => m.tipo === "gasto");
-    downloadCsv("gastos.csv", movimientosToCsv(gastos));
+    const csv = movimientosToCsv(gastos);
+    downloadCsv("gastos.csv", csv);
   });
 
   document.getElementById("btn-export-todo")?.addEventListener("click", () => {
-    downloadCsv("movimientos-completos.csv", movimientosToCsv(movimientos));
+    const csv = movimientosToCsv(movimientos);
+    downloadCsv("movimientos-completos.csv", csv);
   });
 }
 
-/* ==========================
-   🔧 10. Configuración
-   ========================== */
+// ================== CONFIG LOCAL + LOGO ==================
+function renderLogoPreview() {
+  const preview = document.getElementById("invoice-logo-preview");
+  if (!preview) return;
+  preview.innerHTML = "";
+
+  if (config.invoiceLogoDataUrl) {
+    const img = document.createElement("img");
+    img.src = config.invoiceLogoDataUrl;
+    img.alt = "Logo facturas";
+    img.className = "invoice-logo-img";
+    preview.appendChild(img);
+  } else {
+    const span = document.createElement("span");
+    span.className = "muted";
+    span.textContent = "No hay logo configurado.";
+    preview.appendChild(span);
+  }
+}
 
 function setupConfig() {
   const nombreInput = document.getElementById("config-nombre-negocio");
   const monedaInput = document.getElementById("config-moneda");
+  const companyIdInput = document.getElementById("config-company-id");
+  const companyAddressInput = document.getElementById("config-company-address");
+  const companyPhoneInput = document.getElementById("config-company-phone");
+  const companyEmailInput = document.getElementById("config-company-email");
+  const logoInput = document.getElementById("invoice-logo-input");
 
   if (nombreInput) nombreInput.value = config.nombreNegocio || "";
   if (monedaInput) monedaInput.value = config.moneda || "$";
+  if (companyIdInput) companyIdInput.value = config.companyId || "";
+  if (companyAddressInput) companyAddressInput.value = config.companyAddress || "";
+  if (companyPhoneInput) companyPhoneInput.value = config.companyPhone || "";
+  if (companyEmailInput) companyEmailInput.value = config.companyEmail || "";
+
+  renderLogoPreview();
 
   document.getElementById("btn-guardar-config")?.addEventListener("click", () => {
     if (nombreInput) config.nombreNegocio = nombreInput.value.trim();
-    if (monedaInput) config.moneda       = monedaInput.value.trim() || "$";
+    if (monedaInput) config.moneda = monedaInput.value.trim() || "$";
+    if (companyIdInput) config.companyId = companyIdInput.value.trim();
+    if (companyAddressInput) config.companyAddress = companyAddressInput.value.trim();
+    if (companyPhoneInput) config.companyPhone = companyPhoneInput.value.trim();
+    if (companyEmailInput) config.companyEmail = companyEmailInput.value.trim();
+
     saveConfig();
     renderKpis();
     alert("Configuración guardada.");
   });
+
+  logoInput?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result;
+      if (typeof result === "string") {
+        config.invoiceLogoDataUrl = result;
+        saveConfig();
+        renderLogoPreview();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
-/* ==========================
-   11. Service Worker (simple)
-   ========================== */
+// ================== FACTURAS ==================
+let editingInvoiceId = null;
 
-function registerServiceWorker() {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker
-      .register("./service-worker.js")
-      .catch((err) => console.warn("SW error:", err));
+function newInvoiceItemRow(item = {}) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>
+      <input type="text" class="inv-item-desc" placeholder="Descripción" value="${item.descripcion || ""}">
+    </td>
+    <td class="right">
+      <input type="number" class="inv-item-qty" min="0" step="0.01" value="${item.cantidad ?? 1}">
+    </td>
+    <td class="right">
+      <input type="number" class="inv-item-price" min="0" step="0.01" value="${item.precio ?? 0}">
+    </td>
+    <td class="right">
+      <span class="inv-item-total">${formatMoney(item.total || 0)}</span>
+    </td>
+    <td class="right">
+      <button type="button" class="btn-mini-outline inv-item-remove">✕</button>
+    </td>
+  `;
+  return tr;
+}
+
+function recalcInvoiceItemsTotals() {
+  const tbody = document.getElementById("invoice-items-body");
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+
+  let subtotal = 0;
+  rows.forEach((row) => {
+    const qtyInput = row.querySelector(".inv-item-qty");
+    const priceInput = row.querySelector(".inv-item-price");
+    const totalSpan = row.querySelector(".inv-item-total");
+
+    const qty = Number(qtyInput?.value) || 0;
+    const price = Number(priceInput?.value) || 0;
+    const lineTotal = qty * price;
+    subtotal += lineTotal;
+    if (totalSpan) totalSpan.textContent = formatMoney(lineTotal);
+  });
+
+  const taxRateInput = document.getElementById("invoice-tax-rate");
+  const subtotalEl = document.getElementById("invoice-subtotal-display");
+  const totalEl = document.getElementById("invoice-total-display");
+
+  const taxRate = Number(taxRateInput?.value) || 0;
+  const impuestos = subtotal * (taxRate / 100);
+  const total = subtotal + impuestos;
+
+  if (subtotalEl) subtotalEl.textContent = formatMoney(subtotal);
+  if (totalEl) totalEl.textContent = formatMoney(total);
+}
+
+function clearInvoiceModal() {
+  editingInvoiceId = null;
+
+  const numberInput = document.getElementById("invoice-number");
+  const dateInput = document.getElementById("invoice-date");
+  const dueInput = document.getElementById("invoice-due");
+  const clientNameInput = document.getElementById("invoice-client-name");
+  const clientEmailInput = document.getElementById("invoice-client-email");
+  const clientPhoneInput = document.getElementById("invoice-client-phone");
+  const notesInput = document.getElementById("invoice-notes");
+  const taxRateInput = document.getElementById("invoice-tax-rate");
+  const tbody = document.getElementById("invoice-items-body");
+
+  if (numberInput) numberInput.value = "";
+  if (dateInput) dateInput.value = todayISO();
+  if (dueInput) dueInput.value = "";
+  if (clientNameInput) clientNameInput.value = "";
+  if (clientEmailInput) clientEmailInput.value = "";
+  if (clientPhoneInput) clientPhoneInput.value = "";
+  if (notesInput) notesInput.value = "";
+  if (taxRateInput) taxRateInput.value = "0";
+  if (tbody) tbody.innerHTML = "";
+
+  // Añadimos 2 filas por defecto
+  if (tbody) {
+    tbody.appendChild(newInvoiceItemRow());
+    tbody.appendChild(newInvoiceItemRow());
   }
+
+  recalcInvoiceItemsTotals();
 }
 
-/* ==========================
-   12. Firebase Auth + Sync
-   ========================== */
+function fillInvoiceModal(factura) {
+  editingInvoiceId = factura.id;
 
-// Ruta compatible con tus reglas:
-//
-// match /users/{uid}/state/{docId} { ... }
-function getCloudDocRef() {
-  if (!currentUser) return null;
-  return doc(db, "users", currentUser.uid, "state", "app");
+  const numberInput = document.getElementById("invoice-number");
+  const dateInput = document.getElementById("invoice-date");
+  const dueInput = document.getElementById("invoice-due");
+  const clientNameInput = document.getElementById("invoice-client-name");
+  const clientEmailInput = document.getElementById("invoice-client-email");
+  const clientPhoneInput = document.getElementById("invoice-client-phone");
+  const notesInput = document.getElementById("invoice-notes");
+  const taxRateInput = document.getElementById("invoice-tax-rate");
+  const tbody = document.getElementById("invoice-items-body");
+
+  if (numberInput) numberInput.value = factura.numero || "";
+  if (dateInput) dateInput.value = factura.fecha || todayISO();
+  if (dueInput) dueInput.value = factura.vencimiento || "";
+  if (clientNameInput) clientNameInput.value = factura.clienteNombre || "";
+  if (clientEmailInput) clientEmailInput.value = factura.clienteEmail || "";
+  if (clientPhoneInput) clientPhoneInput.value = factura.clienteTelefono || "";
+  if (notesInput) notesInput.value = factura.notas || "";
+  if (taxRateInput) taxRateInput.value = factura.taxRate ?? 0;
+
+  if (tbody) {
+    tbody.innerHTML = "";
+    (factura.items || []).forEach((it) => {
+      tbody.appendChild(
+        newInvoiceItemRow({
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          precio: it.precio,
+          total: it.total,
+        })
+      );
+    });
+    if ((factura.items || []).length === 0) {
+      tbody.appendChild(newInvoiceItemRow());
+    }
+  }
+
+  recalcInvoiceItemsTotals();
 }
 
-// UI de auth / nube (opcionales, no rompe si no existen)
-function updateAuthUI() {
-  const statusEl = document.getElementById("cloud-status");
-  const loginBtn = document.getElementById("btn-login-google");
-  const logoutBtn= document.getElementById("btn-logout");
+function openInvoiceModal(factura = null) {
+  const backdrop = document.getElementById("modal-invoice");
+  const title = document.getElementById("invoice-modal-title");
+  if (!backdrop || !title) return;
 
-  if (statusEl) {
-    if (currentUser) {
-      statusEl.textContent = currentUser.displayName || currentUser.email || "Conectado";
+  if (factura) {
+    title.textContent = "Editar factura";
+    fillInvoiceModal(factura);
+  } else {
+    title.textContent = "Nueva factura";
+    clearInvoiceModal();
+  }
+
+  backdrop.classList.add("show");
+}
+
+function closeInvoiceModal() {
+  const backdrop = document.getElementById("modal-invoice");
+  if (!backdrop) return;
+  backdrop.classList.remove("show");
+}
+
+function collectInvoiceFromForm() {
+  const numberInput = document.getElementById("invoice-number");
+  const dateInput = document.getElementById("invoice-date");
+  const dueInput = document.getElementById("invoice-due");
+  const clientNameInput = document.getElementById("invoice-client-name");
+  const clientEmailInput = document.getElementById("invoice-client-email");
+  const clientPhoneInput = document.getElementById("invoice-client-phone");
+  const notesInput = document.getElementById("invoice-notes");
+  const taxRateInput = document.getElementById("invoice-tax-rate");
+  const tbody = document.getElementById("invoice-items-body");
+
+  const numero = numberInput?.value.trim() || "";
+  const fecha = dateInput?.value || todayISO();
+  const vencimiento = dueInput?.value || "";
+  const clienteNombre = clientNameInput?.value.trim() || "";
+  const clienteEmail = clientEmailInput?.value.trim() || "";
+  const clienteTelefono = clientPhoneInput?.value.trim() || "";
+  const notas = notesInput?.value.trim() || "";
+  const taxRate = Number(taxRateInput?.value) || 0;
+
+  if (!numero || !clienteNombre) {
+    alert("Número de factura y nombre del cliente son obligatorios.");
+    return null;
+  }
+
+  const rows = Array.from(tbody?.querySelectorAll("tr") || []);
+  const items = [];
+  let subtotal = 0;
+
+  rows.forEach((row) => {
+    const descInput = row.querySelector(".inv-item-desc");
+    const qtyInput = row.querySelector(".inv-item-qty");
+    const priceInput = row.querySelector(".inv-item-price");
+
+    const descripcion = descInput?.value.trim() || "";
+    const cantidad = Number(qtyInput?.value) || 0;
+    const precio = Number(priceInput?.value) || 0;
+    const total = cantidad * precio;
+
+    if (!descripcion && total === 0) {
+      return; // línea vacía
+    }
+
+    items.push({
+      descripcion,
+      cantidad,
+      precio,
+      total,
+    });
+
+    subtotal += total;
+  });
+
+  const impuestos = subtotal * (taxRate / 100);
+  const total = subtotal + impuestos;
+
+  return {
+    id: editingInvoiceId || Date.now().toString(),
+    numero,
+    fecha,
+    vencimiento,
+    clienteNombre,
+    clienteEmail,
+    clienteTelefono,
+    notas,
+    items,
+    subtotal,
+    impuestos,
+    total,
+    taxRate,
+    estado: "Borrador",
+    createdAt: editingInvoiceId
+      ? facturas.find((f) => f.id === editingInvoiceId)?.createdAt || Date.now()
+      : Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+function renderFacturas() {
+  const tbody = document.getElementById("tbody-facturas");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const ordered = facturas.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  ordered.forEach((f) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${f.numero || ""}</td>
+      <td>${f.fecha || ""}</td>
+      <td>${f.clienteNombre || ""}</td>
+      <td class="right">${formatMoney(f.total || 0)}</td>
+      <td>${f.estado || "Borrador"}</td>
+      <td class="right">
+        <button type="button" class="btn-mini" data-inv-edit="${f.id}">Editar</button>
+        <button type="button" class="btn-mini-outline" data-inv-delete="${f.id}">Borrar</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Listeners para editar / borrar
+  tbody.querySelectorAll("[data-inv-edit]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-inv-edit");
+      const factura = facturas.find((f) => f.id === id);
+      if (factura) {
+        openInvoiceModal(factura);
+      }
+    });
+  });
+
+  tbody.querySelectorAll("[data-inv-delete]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-inv-delete");
+      if (!id) return;
+      if (!confirm("¿Eliminar esta factura definitivamente?")) return;
+      facturas = facturas.filter((f) => f.id !== id);
+      saveFacturas();
+      renderFacturas();
+    });
+  });
+}
+
+function setupInvoiceModule() {
+  const btnNew = document.getElementById("btn-new-invoice");
+  const btnAddItem = document.getElementById("btn-add-invoice-item");
+  const taxRateInput = document.getElementById("invoice-tax-rate");
+  const backdrop = document.getElementById("modal-invoice");
+  const btnClose = document.getElementById("invoice-modal-close");
+  const btnCancel = document.getElementById("invoice-modal-cancel");
+  const form = document.getElementById("invoice-form");
+  const itemsBody = document.getElementById("invoice-items-body");
+
+  btnNew?.addEventListener("click", () => openInvoiceModal(null));
+
+  btnAddItem?.addEventListener("click", () => {
+    if (!itemsBody) return;
+    itemsBody.appendChild(newInvoiceItemRow());
+    recalcInvoiceItemsTotals();
+  });
+
+  // Recalcular totales cuando cambien cantidad / precio / tax
+  itemsBody?.addEventListener("input", (e) => {
+    if (
+      e.target.classList.contains("inv-item-qty") ||
+      e.target.classList.contains("inv-item-price")
+    ) {
+      recalcInvoiceItemsTotals();
+    }
+  });
+
+  itemsBody?.addEventListener("click", (e) => {
+    const target = e.target;
+    if (target.classList.contains("inv-item-remove")) {
+      const row = target.closest("tr");
+      if (row) {
+        row.remove();
+        recalcInvoiceItemsTotals();
+      }
+    }
+  });
+
+  taxRateInput?.addEventListener("input", () => {
+    recalcInvoiceItemsTotals();
+  });
+
+  btnClose?.addEventListener("click", () => closeInvoiceModal());
+  btnCancel?.addEventListener("click", () => closeInvoiceModal());
+
+  form?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const factura = collectInvoiceFromForm();
+    if (!factura) return;
+
+    const index = facturas.findIndex((f) => f.id === factura.id);
+    if (index >= 0) {
+      facturas[index] = factura;
     } else {
-      statusEl.textContent = "Modo local (sin sesión)";
+      facturas.push(factura);
     }
-  }
 
-  if (loginBtn)  loginBtn.style.display  = currentUser ? "none" : "inline-flex";
-  if (logoutBtn) logoutBtn.style.display = currentUser ? "inline-flex" : "inline-flex"; // ya existe en sidebar
+    saveFacturas();
+    renderFacturas();
+    closeInvoiceModal();
+  });
 }
 
-async function handleLoginGoogle() {
-  try {
-    await signInWithPopup(auth, provider);
-  } catch (e) {
-    console.error("Error login Google:", e);
-    alert("No se pudo iniciar sesión con Google.");
+// ================== CLOUD / FIRESTORE ==================
+function updateCloudUI() {
+  const statusEl = document.getElementById("cloud-status");
+  const btnLogin = document.getElementById("btn-login");
+  const btnLogout = document.getElementById("btn-logout");
+
+  if (!statusEl || !btnLogin || !btnLogout) return;
+
+  if (currentUser) {
+    statusEl.textContent =
+      currentUser.displayName || currentUser.email || "Conectado";
+    btnLogin.style.display = "none";
+    btnLogout.style.display = "inline-flex";
+  } else {
+    statusEl.textContent = "Sin conexión";
+    btnLogin.style.display = "inline-flex";
+    btnLogout.style.display = "none";
   }
 }
 
-async function handleLogout() {
-  try {
-    await signOut(auth);
-    alert("Sesión cerrada.");
-  } catch (e) {
-    console.error("Error al cerrar sesión:", e);
-    alert("No se pudo cerrar sesión.");
-  }
-}
-
-async function cloudPullReplace() {
-  if (!currentUser) {
-    alert("Primero inicia sesión con Google.");
-    return;
-  }
-  try {
-    const ref  = getCloudDocRef();
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      alert("No hay datos en la nube todavía.");
-      return;
-    }
-    const remote = snap.data() || {};
-    console.log("Datos remotos:", remote);
-
-    movimientos = Array.isArray(remote.movimientos) ? remote.movimientos : [];
-    config      = { ...config, ...(remote.config || {}) };
-
-    saveMovimientos();
-    saveConfig();
-    renderKpis();
-    renderTablas();
-    setupConfig(); // recarga inputs
-
-    alert("Datos cargados desde la nube.");
-  } catch (err) {
-    console.error("Error en cloudPullReplace:", err);
-    alert("Error al leer de la nube: " + (err.code || err.message));
-  }
+function getCloudDocRef() {
+  if (!currentUser) throw new Error("No hay usuario autenticado.");
+  return doc(db, "users", currentUser.uid, "state", "app");
 }
 
 async function cloudPushReplace() {
@@ -512,40 +822,90 @@ async function cloudPushReplace() {
   }
   try {
     const ref = getCloudDocRef();
-    await setDoc(ref, {
-      movimientos,
-      config,
-      updatedAt: new Date().toISOString(),
-    });
-    alert("Datos guardados en la nube.");
+    await setDoc(
+      ref,
+      {
+        uid: currentUser.uid,
+        movimientos,
+        facturas,
+        config,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    alert("Datos (movimientos, facturas, config) guardados en la nube.");
   } catch (err) {
     console.error("Error en cloudPushReplace:", err);
     alert("Error al guardar en la nube: " + (err.code || err.message));
   }
 }
 
-function setupCloudUI() {
-  const loginBtn   = document.getElementById("btn-login-google");
-  const logoutBtn  = document.getElementById("btn-logout");
-  const pullBtn    = document.getElementById("btn-cloud-pull");
-  const pushBtn    = document.getElementById("btn-cloud-push");
+async function cloudPullReplace() {
+  if (!currentUser) {
+    alert("Primero inicia sesión con Google.");
+    return;
+  }
+  try {
+    const ref = getCloudDocRef();
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      alert("No hay datos en la nube todavía.");
+      return;
+    }
+    const data = snap.data();
+    movimientos = Array.isArray(data.movimientos) ? data.movimientos : [];
+    facturas = Array.isArray(data.facturas) ? data.facturas : [];
+    config = { ...config, ...(data.config || {}) };
 
-  loginBtn?.addEventListener("click", handleLoginGoogle);
-  logoutBtn?.addEventListener("click", handleLogout);
-  pullBtn?.addEventListener("click", cloudPullReplace);
-  pushBtn?.addEventListener("click", cloudPushReplace);
+    saveMovimientos();
+    saveFacturas();
+    saveConfig();
+
+    setupConfig();
+    renderKpis();
+    renderTablas();
+    renderFacturas();
+    alert("Datos cargados desde la nube.");
+  } catch (err) {
+    console.error("Error en cloudPullReplace:", err);
+    alert("Error al leer de la nube: " + (err.code || err.message));
+  }
+}
+
+function setupCloudAuth() {
+  const btnLogin = document.getElementById("btn-login");
+  const btnLogout = document.getElementById("btn-logout");
+
+  btnLogin?.addEventListener("click", async () => {
+    try {
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged manejará el resto
+    } catch (e) {
+      console.error("Error en login:", e);
+      alert("No se pudo iniciar sesión: " + (e.code || e.message));
+    }
+  });
+
+  btnLogout?.addEventListener("click", async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Error al cerrar sesión:", e);
+    }
+  });
 
   onAuthStateChanged(auth, (user) => {
     currentUser = user || null;
-    console.log("Auth:", currentUser ? currentUser.uid : "NO LOGUEADO");
-    updateAuthUI();
+    updateCloudUI();
   });
 }
 
-/* ==========================
-   13. INIT
-   ========================== */
+function setupCloudButtons() {
+  document.getElementById("btn-cloud-push")?.addEventListener("click", cloudPushReplace);
+  document.getElementById("btn-cloud-pull")?.addEventListener("click", cloudPullReplace);
+}
 
+// ================== INIT ==================
 document.addEventListener("DOMContentLoaded", () => {
   loadFromStorage();
   renderTopbarDate();
@@ -553,8 +913,10 @@ document.addEventListener("DOMContentLoaded", () => {
   setupModal();
   setupExportButtons();
   setupConfig();
-  registerServiceWorker();
+  setupInvoiceModule();
+  setupCloudAuth();
+  setupCloudButtons();
   renderKpis();
   renderTablas();
-  setupCloudUI();
+  renderFacturas();
 });
