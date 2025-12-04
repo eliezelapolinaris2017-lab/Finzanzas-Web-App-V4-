@@ -1,18 +1,11 @@
-// =========================
-// NEXUS FINANCE DESKTOP v4
-// 100% localStorage (sin Firebase)
-// con FACTURAS que editan, generan PDF y actualizan KPIs
-// =========================
+// app.js — Nexus Finance (LocalStorage + Facturas + jsPDF)
 
 const STORAGE_KEY_MOVIMIENTOS = "nexus-finance-movimientos";
 const STORAGE_KEY_CONFIG = "nexus-finance-config";
 const STORAGE_KEY_FACTURAS = "nexus-finance-facturas";
-const STORAGE_KEY_INVOICE_LOGO = "nexus-finance-invoice-logo";
 
 let movimientos = [];
 let facturas = [];
-let invoiceLogoBase64 = null;
-let currentFacturaEditingId = null; // ← NUEVO: para saber si estamos editando
 
 let config = {
   nombreNegocio: "",
@@ -20,14 +13,17 @@ let config = {
   empresaDireccion: "",
   empresaTelefono: "",
   empresaEmail: "",
+  invoiceLogoBase64: ""
 };
 
-// ===== UTILIDADES GENERALES =====
+let invoiceLogoBase64 = "";
+
+// ========== UTILIDADES BÁSICAS ==========
 
 function loadFromStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_MOVIMIENTOS);
-    movimientos = raw ? JSON.parse(raw) : [];
+    const rawMov = localStorage.getItem(STORAGE_KEY_MOVIMIENTOS);
+    movimientos = rawMov ? JSON.parse(rawMov) : [];
   } catch (e) {
     console.error("Error leyendo movimientos:", e);
     movimientos = [];
@@ -35,27 +31,18 @@ function loadFromStorage() {
 
   try {
     const rawCfg = localStorage.getItem(STORAGE_KEY_CONFIG);
-    if (rawCfg) {
-      const parsed = JSON.parse(rawCfg);
-      config = { ...config, ...parsed };
-    }
+    if (rawCfg) config = { ...config, ...JSON.parse(rawCfg) };
+    invoiceLogoBase64 = config.invoiceLogoBase64 || "";
   } catch (e) {
     console.error("Error leyendo config:", e);
   }
 
   try {
-    const rawF = localStorage.getItem(STORAGE_KEY_FACTURAS);
-    facturas = rawF ? JSON.parse(rawF) : [];
+    const rawFac = localStorage.getItem(STORAGE_KEY_FACTURAS);
+    facturas = rawFac ? JSON.parse(rawFac) : [];
   } catch (e) {
     console.error("Error leyendo facturas:", e);
     facturas = [];
-  }
-
-  try {
-    invoiceLogoBase64 = localStorage.getItem(STORAGE_KEY_INVOICE_LOGO);
-  } catch (e) {
-    console.error("Error leyendo logo factura:", e);
-    invoiceLogoBase64 = null;
   }
 }
 
@@ -64,6 +51,7 @@ function saveMovimientos() {
 }
 
 function saveConfig() {
+  config.invoiceLogoBase64 = invoiceLogoBase64;
   localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
 }
 
@@ -89,22 +77,22 @@ function sameMonth(dateStr, dateRef) {
   return dateStr.slice(0, 7) === dateRef.slice(0, 7);
 }
 
-// ===== TOPBAR FECHA =====
+// ========== TOPBAR FECHA ==========
 
 function renderTopbarDate() {
   const el = document.getElementById("topbar-date");
   if (!el) return;
   const now = new Date();
-  const formatted = now.toLocaleDateString("es-PR", {
+  const formato = now.toLocaleDateString("es-PR", {
     weekday: "short",
     day: "2-digit",
     month: "short",
-    year: "numeric",
+    year: "numeric"
   });
-  el.textContent = formatted;
+  el.textContent = formato;
 }
 
-// ===== KPIs =====
+// ========== KPIs ==========
 
 function renderKpis() {
   const hoy = todayISO();
@@ -133,37 +121,29 @@ function renderKpis() {
   const balanceHoy = ingresosHoy - gastosHoy;
   const balanceMes = ingresosMes - gastosMes;
 
-  const elIngHoy = document.getElementById("kpi-ingresos-hoy");
-  const elGasHoy = document.getElementById("kpi-gastos-hoy");
-  const elBalHoy = document.getElementById("kpi-balance-hoy");
-  const elIngMes = document.getElementById("kpi-ingresos-mes");
-  const elGasMes = document.getElementById("kpi-gastos-mes");
-  const elBalMes = document.getElementById("kpi-balance-mes");
-  const elMovMes = document.getElementById("kpi-movimientos-mes");
-  const elUlt = document.getElementById("kpi-ultimo-movimiento");
-
-  if (elIngHoy) elIngHoy.textContent = formatMoney(ingresosHoy);
-  if (elGasHoy) elGasHoy.textContent = formatMoney(gastosHoy);
-  if (elBalHoy) elBalHoy.textContent = formatMoney(balanceHoy);
-  if (elIngMes) elIngMes.textContent = `Mes actual: ${formatMoney(ingresosMes)}`;
-  if (elGasMes) elGasMes.textContent = `Mes actual: ${formatMoney(gastosMes)}`;
-  if (elBalMes) elBalMes.textContent = `Balance mes: ${formatMoney(balanceMes)}`;
-  if (elMovMes) elMovMes.textContent = movimientos.filter((m) => sameMonth(m.fecha, hoy)).length;
+  document.getElementById("kpi-ingresos-hoy").textContent = formatMoney(ingresosHoy);
+  document.getElementById("kpi-gastos-hoy").textContent = formatMoney(gastosHoy);
+  document.getElementById("kpi-balance-hoy").textContent = formatMoney(balanceHoy);
+  document.getElementById("kpi-ingresos-mes").textContent = `Mes actual: ${formatMoney(ingresosMes)}`;
+  document.getElementById("kpi-gastos-mes").textContent = `Mes actual: ${formatMoney(gastosMes)}`;
+  document.getElementById("kpi-balance-mes").textContent = `Balance mes: ${formatMoney(balanceMes)}`;
+  document.getElementById("kpi-movimientos-mes").textContent = movimientos.filter((m) =>
+    sameMonth(m.fecha, hoy)
+  ).length;
 
   const ultimo = [...movimientos].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-  if (elUlt) {
-    if (ultimo) {
-      const tipoTxt = ultimo.tipo === "ingreso" ? "Ingreso" : "Gasto";
-      elUlt.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
-    } else {
-      elUlt.textContent = "Sin movimientos recientes";
-    }
+  const elUlt = document.getElementById("kpi-ultimo-movimiento");
+  if (ultimo) {
+    const tipoTxt = ultimo.tipo === "ingreso" ? "Ingreso" : "Gasto";
+    elUlt.textContent = `${tipoTxt} de ${formatMoney(ultimo.monto)} el ${ultimo.fecha}`;
+  } else {
+    elUlt.textContent = "Sin movimientos recientes";
   }
 }
 
-// ===== TABLAS INGRESOS / GASTOS =====
+// ========== TABLAS INGRESOS / GASTOS ==========
 
-function buildRowMovimiento(m) {
+function buildRow(m) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td>${m.fecha || ""}</td>
@@ -197,16 +177,15 @@ function renderTablas() {
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 10);
 
-  recientesIng.forEach((m) => tbodyIng && tbodyIng.appendChild(buildRowMovimiento(m)));
-  recientesGas.forEach((m) => tbodyGas && tbodyGas.appendChild(buildRowMovimiento(m)));
-
-  ingresos.forEach((m) => tbodyIngFull && tbodyIngFull.appendChild(buildRowMovimiento(m)));
-  gastos.forEach((m) => tbodyGasFull && tbodyGasFull.appendChild(buildRowMovimiento(m)));
+  recientesIng.forEach((m) => tbodyIng && tbodyIng.appendChild(buildRow(m)));
+  recientesGas.forEach((m) => tbodyGas && tbodyGas.appendChild(buildRow(m)));
+  ingresos.forEach((m) => tbodyIngFull && tbodyIngFull.appendChild(buildRow(m)));
+  gastos.forEach((m) => tbodyGasFull && tbodyGasFull.appendChild(buildRow(m)));
 }
 
-// ===== MODAL MOVIMIENTO =====
+// ========== MODAL MOVIMIENTO ==========
 
-const modalMovimiento = {
+const modal = {
   backdrop: null,
   tipoInput: null,
   fechaInput: null,
@@ -220,48 +199,53 @@ const modalMovimiento = {
     if (!this.backdrop) return;
     this.tipoInput.value = tipo || "ingreso";
     this.titleEl.textContent = tipo === "gasto" ? "Nuevo gasto" : "Nuevo ingreso";
-    if (!this.fechaInput.value) this.fechaInput.value = todayISO();
+
+    if (!this.fechaInput.value) {
+      this.fechaInput.value = todayISO();
+    }
+
     this.backdrop.classList.add("show");
   },
 
   close() {
     if (!this.backdrop) return;
     this.backdrop.classList.remove("show");
-  },
+  }
 };
 
-function setupModalMovimiento() {
-  modalMovimiento.backdrop = document.getElementById("modal-movimiento");
-  modalMovimiento.tipoInput = document.getElementById("mov-tipo");
-  modalMovimiento.fechaInput = document.getElementById("mov-fecha");
-  modalMovimiento.descInput = document.getElementById("mov-descripcion");
-  modalMovimiento.catInput = document.getElementById("mov-categoria");
-  modalMovimiento.metodoInput = document.getElementById("mov-metodo");
-  modalMovimiento.montoInput = document.getElementById("mov-monto");
-  modalMovimiento.titleEl = document.getElementById("modal-title");
+function setupModal() {
+  modal.backdrop = document.getElementById("modal-movimiento");
+  modal.tipoInput = document.getElementById("mov-tipo");
+  modal.fechaInput = document.getElementById("mov-fecha");
+  modal.descInput = document.getElementById("mov-descripcion");
+  modal.catInput = document.getElementById("mov-categoria");
+  modal.metodoInput = document.getElementById("mov-metodo");
+  modal.montoInput = document.getElementById("mov-monto");
+  modal.titleEl = document.getElementById("modal-title");
 
-  const btnAddMov = document.getElementById("btn-add-movimiento");
-  btnAddMov?.addEventListener("click", () => modalMovimiento.open("ingreso"));
+  document.getElementById("btn-add-movimiento")?.addEventListener("click", () => {
+    modal.open("ingreso");
+  });
 
   document.querySelectorAll("[data-add]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tipo = btn.getAttribute("data-add") === "gasto" ? "gasto" : "ingreso";
-      modalMovimiento.open(tipo);
+      modal.open(tipo);
     });
   });
 
-  document.getElementById("modal-close")?.addEventListener("click", () => modalMovimiento.close());
-  document.getElementById("modal-cancel")?.addEventListener("click", () => modalMovimiento.close());
+  document.getElementById("modal-close")?.addEventListener("click", () => modal.close());
+  document.getElementById("modal-cancel")?.addEventListener("click", () => modal.close());
 
   const form = document.getElementById("form-movimiento");
   form?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const tipo = modalMovimiento.tipoInput.value;
-    const fecha = modalMovimiento.fechaInput.value || todayISO();
-    const descripcion = modalMovimiento.descInput.value.trim();
-    const categoria = modalMovimiento.catInput.value.trim();
-    const metodo = modalMovimiento.metodoInput.value;
-    const monto = Number(modalMovimiento.montoInput.value);
+    const tipo = modal.tipoInput.value;
+    const fecha = modal.fechaInput.value || todayISO();
+    const descripcion = modal.descInput.value.trim();
+    const categoria = modal.catInput.value.trim();
+    const metodo = modal.metodoInput.value;
+    const monto = Number(modal.montoInput.value);
 
     if (!descripcion || !categoria || !metodo || !fecha || !monto) {
       alert("Completa todos los campos y coloca un monto válido.");
@@ -276,7 +260,7 @@ function setupModalMovimiento() {
       categoria,
       metodo,
       monto,
-      createdAt: Date.now(),
+      createdAt: Date.now()
     };
 
     movimientos.push(movimiento);
@@ -285,12 +269,12 @@ function setupModalMovimiento() {
     renderTablas();
 
     form.reset();
-    modalMovimiento.fechaInput.value = todayISO();
-    modalMovimiento.close();
+    modal.fechaInput.value = todayISO();
+    modal.close();
   });
 }
 
-// ===== NAVEGACIÓN =====
+// ========== NAVEGACIÓN SECCIONES ==========
 
 function setupNavigation() {
   const navItems = document.querySelectorAll(".nav-item");
@@ -299,6 +283,7 @@ function setupNavigation() {
   navItems.forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.getAttribute("data-section");
+
       navItems.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
 
@@ -313,7 +298,7 @@ function setupNavigation() {
   });
 }
 
-// ===== EXPORT CSV MOVIMIENTOS =====
+// ========== EXPORTAR CSV MOVIMIENTOS ==========
 
 function movimientosToCsv(rows) {
   const header = ["tipo", "fecha", "descripcion", "categoria", "metodo", "monto"];
@@ -326,7 +311,7 @@ function movimientosToCsv(rows) {
       `"${(m.descripcion || "").replace(/"/g, '""')}"`,
       `"${(m.categoria || "").replace(/"/g, '""')}"`,
       m.metodo,
-      m.monto,
+      m.monto
     ];
     lines.push(line.join(","));
   });
@@ -346,7 +331,7 @@ function downloadCsv(filename, csv) {
   URL.revokeObjectURL(url);
 }
 
-function setupExportButtonsMovimientos() {
+function setupExportButtons() {
   document.getElementById("btn-export-ingresos")?.addEventListener("click", () => {
     const ingresos = movimientos.filter((m) => m.tipo === "ingreso");
     const csv = movimientosToCsv(ingresos);
@@ -365,7 +350,7 @@ function setupExportButtonsMovimientos() {
   });
 }
 
-// ===== CONFIG + LOGO =====
+// ========== CONFIGURACIÓN (NEGOCIO + LOGO) ==========
 
 function setupConfig() {
   const nombreInput = document.getElementById("config-nombre-negocio");
@@ -373,6 +358,7 @@ function setupConfig() {
   const dirInput = document.getElementById("config-empresa-direccion");
   const telInput = document.getElementById("config-empresa-telefono");
   const emailInput = document.getElementById("config-empresa-email");
+  const logoInput = document.getElementById("config-logo-factura");
 
   if (nombreInput) nombreInput.value = config.nombreNegocio || "";
   if (monedaInput) monedaInput.value = config.moneda || "$";
@@ -386,400 +372,180 @@ function setupConfig() {
     if (dirInput) config.empresaDireccion = dirInput.value.trim();
     if (telInput) config.empresaTelefono = telInput.value.trim();
     if (emailInput) config.empresaEmail = emailInput.value.trim();
+
     saveConfig();
     renderKpis();
     alert("Configuración guardada.");
   });
 
-  setupInvoiceLogo();
+  logoInput?.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      invoiceLogoBase64 = reader.result;
+      config.invoiceLogoBase64 = invoiceLogoBase64;
+      saveConfig();
+      alert("Logo para facturas guardado correctamente.");
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
-function setupInvoiceLogo() {
-  const inputFile = document.getElementById("invoice-logo-input");
-  const img = document.getElementById("invoice-logo-preview-img");
-  const emptyTxt = document.getElementById("invoice-logo-empty");
-
-  function refreshPreview() {
-    if (invoiceLogoBase64 && img && emptyTxt) {
-      img.src = invoiceLogoBase64;
-      img.style.display = "block";
-      emptyTxt.style.display = "none";
-    } else if (img && emptyTxt) {
-      img.style.display = "none";
-      emptyTxt.style.display = "inline";
-    }
-  }
-
-  if (inputFile) {
-    inputFile.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        invoiceLogoBase64 = ev.target.result;
-        localStorage.setItem(STORAGE_KEY_INVOICE_LOGO, invoiceLogoBase64);
-        refreshPreview();
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  refreshPreview();
-}
-
-// ===== LOGOUT PLACEHOLDER =====
+// ========== LOGOUT PLACEHOLDER ==========
 
 function setupLogout() {
   const btn = document.getElementById("btn-logout");
-  btn?.addEventListener("click", () => {
-    alert("Aquí puedes implementar un login real en el futuro. Por ahora solo cierra la pestaña.");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    alert("Aquí iría el cierre de sesión real. (Solo local por ahora).");
   });
 }
 
-// ===== FACTURAS: MOVIMIENTO AUTOMÁTICO =====
+// ========== FACTURAS: LÓGICA ==========
 
-function upsertMovimientoFromFactura(factura) {
-  if (!factura || !factura.id) return;
-
-  let mov = movimientos.find((m) => m.facturaId === factura.id);
-  const now = Date.now();
-
-  const movData = {
-    tipo: "ingreso",
-    fecha: factura.fecha,
-    descripcion: `Factura ${factura.numero} - ${factura.cliente}`,
-    categoria: "Facturas",
-    metodo: "Factura",
-    monto: factura.total,
-    facturaId: factura.id,
-    createdAt: mov ? mov.createdAt : now,
-  };
-
-  if (mov) {
-    Object.assign(mov, movData);
-  } else {
-    movimientos.push({
-      id: `fact-${factura.id}`,
-      ...movData,
-    });
-  }
-
-  saveMovimientos();
-  renderKpis();
-  renderTablas();
-}
-
-// ===== FACTURAS UI =====
-
-function setupFacturasUI() {
-  const btnNueva = document.getElementById("btn-nueva-factura");
-  const btnExportCsv = document.getElementById("btn-facturas-export-csv");
-  const modalBackdrop = document.getElementById("modal-factura");
-  const btnClose = document.getElementById("modal-factura-close");
-  const btnCancel = document.getElementById("modal-factura-cancel");
-  const btnGuardar = document.getElementById("btn-factura-guardar-sin-pdf");
-  const btnGuardarPdf = document.getElementById("btn-factura-guardar-pdf");
-  const btnAddItem = document.getElementById("btn-add-factura-item");
-
-  function openFacturaModal(factura) {
-    currentFacturaEditingId = factura ? factura.id : null;
-
-    const fechaInput = document.getElementById("fact-fecha");
-    const numeroInput = document.getElementById("fact-numero");
-    const clienteInput = document.getElementById("fact-cliente");
-    const dirCliInput = document.getElementById("fact-cliente-direccion");
-    const notasInput = document.getElementById("fact-notas");
-    const taxPercent = document.getElementById("fact-tax-percent");
-    const tbodyItems = document.getElementById("tbody-factura-items");
-    const titleEl = document.getElementById("modal-factura-title");
-
-    tbodyItems.innerHTML = "";
-
-    const hoy = todayISO();
-    fechaInput.value = factura?.fecha || hoy;
-    numeroInput.value = factura?.numero || String(facturas.length + 1).padStart(4, "0");
-    clienteInput.value = factura?.cliente || "";
-    dirCliInput.value = factura?.clienteDireccion || "";
-    notasInput.value = factura?.notas || "";
-    taxPercent.value = factura?.taxPercent ?? 0;
-
-    if (titleEl) {
-      titleEl.textContent = currentFacturaEditingId ? "Editar factura" : "Nueva factura";
-    }
-
-    const items = factura?.items?.length ? factura.items : [{ descripcion: "", cantidad: 1, precio: 0 }];
-    items.forEach((it) => addFacturaItemRow(it.descripcion, it.cantidad, it.precio));
-
-    recalcFacturaTotals();
-    modalBackdrop.classList.add("show");
-  }
-
-  function closeFacturaModal() {
-    currentFacturaEditingId = null;
-    modalBackdrop.classList.remove("show");
-  }
-
-  btnNueva?.addEventListener("click", () => openFacturaModal(null));
-  btnClose?.addEventListener("click", closeFacturaModal);
-  btnCancel?.addEventListener("click", closeFacturaModal);
-  btnAddItem?.addEventListener("click", () => addFacturaItemRow("", 1, 0));
-
-  btnGuardar?.addEventListener("click", () => {
-    const factura = collectFacturaFromModal();
-    if (!factura) return;
-
-    let facturaFull;
-    if (currentFacturaEditingId) {
-      const idx = facturas.findIndex((f) => f.id === currentFacturaEditingId);
-      const prev = idx >= 0 ? facturas[idx] : null;
-      const id = currentFacturaEditingId;
-      const createdAt = prev?.createdAt || Date.now();
-      facturaFull = { ...factura, id, createdAt };
-      if (idx >= 0) {
-        facturas[idx] = facturaFull;
-      } else {
-        facturas.push(facturaFull);
-      }
-    } else {
-      const id = Date.now().toString();
-      facturaFull = { ...factura, id, createdAt: Date.now() };
-      facturas.push(facturaFull);
-    }
-
-    saveFacturas();
-    upsertMovimientoFromFactura(facturaFull);
-    renderFacturasTable();
-    closeFacturaModal();
-  });
-
-  btnGuardarPdf?.addEventListener("click", () => {
-    const factura = collectFacturaFromModal();
-    if (!factura) return;
-
-    let facturaFull;
-    if (currentFacturaEditingId) {
-      const idx = facturas.findIndex((f) => f.id === currentFacturaEditingId);
-      const prev = idx >= 0 ? facturas[idx] : null;
-      const id = currentFacturaEditingId;
-      const createdAt = prev?.createdAt || Date.now();
-      facturaFull = { ...factura, id, createdAt };
-      if (idx >= 0) {
-        facturas[idx] = facturaFull;
-      } else {
-        facturas.push(facturaFull);
-      }
-    } else {
-      const id = Date.now().toString();
-      facturaFull = { ...factura, id, createdAt: Date.now() };
-      facturas.push(facturaFull);
-    }
-
-    saveFacturas();
-    upsertMovimientoFromFactura(facturaFull);
-    renderFacturasTable();
-    generateFacturaPdf(facturaFull);
-    closeFacturaModal();
-  });
-
-  btnExportCsv?.addEventListener("click", () => {
-    const header = ["numero", "fecha", "cliente", "total"];
-    const lines = [header.join(",")];
-    facturas.forEach((f) => {
-      lines.push([
-        f.numero,
-        f.fecha,
-        `"${(f.cliente || "").replace(/"/g, '""')}"`,
-        (f.total || 0).toFixed(2),
-      ].join(","));
-    });
-    const csv = lines.join("\n");
-    downloadCsv("facturas.csv", csv);
-  });
-
-  const tbody = document.getElementById("tbody-facturas");
-  tbody?.addEventListener("click", (e) => {
-    const btnPdf = e.target.closest("[data-fact-pdf]");
-    const btnEdit = e.target.closest("[data-fact-edit]");
-
-    if (btnPdf) {
-      const id = btnPdf.getAttribute("data-fact-pdf");
-      const f = facturas.find((x) => x.id === id);
-      if (!f) return;
-      generateFacturaPdf(f);
-    }
-
-    if (btnEdit) {
-      const id = btnEdit.getAttribute("data-fact-edit");
-      const f = facturas.find((x) => x.id === id);
-      if (!f) return;
-      openFacturaModal(f);
-    }
-  });
-}
-
-function addFacturaItemRow(descripcion, cantidad, precio) {
-  const tbody = document.getElementById("tbody-factura-items");
-  if (!tbody) return;
-  const tr = document.createElement("tr");
-
-  tr.innerHTML = `
-    <td><input class="inv-item-desc" type="text" value="${descripcion || ""}"></td>
-    <td><input class="inv-item-qty" type="number" min="0" step="1" value="${cantidad || 1}"></td>
-    <td><input class="inv-item-price" type="number" min="0" step="0.01" value="${precio || 0}"></td>
-    <td class="right inv-item-total">0.00</td>
-    <td><button type="button" class="btn-mini-outline inv-item-remove">X</button></td>
-  `;
-
-  tbody.appendChild(tr);
-
-  const qtyInput = tr.querySelector(".inv-item-qty");
-  const priceInput = tr.querySelector(".inv-item-price");
-  const descInput = tr.querySelector(".inv-item-desc");
-  const btnRemove = tr.querySelector(".inv-item-remove");
-
-  [qtyInput, priceInput, descInput].forEach((inp) => {
-    inp.addEventListener("input", recalcFacturaTotals);
-  });
-
-  btnRemove.addEventListener("click", () => {
-    tr.remove();
-    recalcFacturaTotals();
-  });
-
-  recalcFacturaTotals();
-}
-
-function recalcFacturaTotals() {
-  const rows = document.querySelectorAll("#tbody-factura-items tr");
-  let subtotal = 0;
-
-  rows.forEach((tr) => {
-    const qty = Number(tr.querySelector(".inv-item-qty")?.value || 0);
-    const price = Number(tr.querySelector(".inv-item-price")?.value || 0);
-    const total = qty * price;
-    subtotal += total;
-    const tdTotal = tr.querySelector(".inv-item-total");
-    if (tdTotal) tdTotal.textContent = total.toFixed(2);
-  });
-
-  const taxPercentInput = document.getElementById("fact-tax-percent");
-  const taxPercent = Number(taxPercentInput?.value || 0);
-  const taxAmount = subtotal * (taxPercent / 100);
-  const total = subtotal + taxAmount;
-
-  const elSub = document.getElementById("fact-subtotal");
-  const elTaxAmt = document.getElementById("fact-tax-amount");
-  const elTotal = document.getElementById("fact-total");
-
-  if (elSub) elSub.textContent = formatMoney(subtotal);
-  if (elTaxAmt) elTaxAmt.textContent = formatMoney(taxAmount);
-  if (elTotal) elTotal.textContent = formatMoney(total);
-}
-
-function collectFacturaFromModal() {
-  const numeroInput = document.getElementById("fact-numero");
-  const fechaInput = document.getElementById("fact-fecha");
-  const clienteInput = document.getElementById("fact-cliente");
-  const dirCliInput = document.getElementById("fact-cliente-direccion");
-  const notasInput = document.getElementById("fact-notas");
-  const taxPercentInput = document.getElementById("fact-tax-percent");
-
-  const rows = document.querySelectorAll("#tbody-factura-items tr");
+function parseItemsFromText(text) {
+  const lines = (text || "").split("\n");
   const items = [];
-  rows.forEach((tr) => {
-    const desc = tr.querySelector(".inv-item-desc")?.value.trim() || "";
-    const qty = Number(tr.querySelector(".inv-item-qty")?.value || 0);
-    const price = Number(tr.querySelector(".inv-item-price")?.value || 0);
-    if (!desc && qty === 0 && price === 0) return;
-    items.push({ descripcion: desc, cantidad: qty, precio: price });
+
+  lines.forEach((raw) => {
+    const line = raw.trim();
+    if (!line) return;
+    const parts = line.split("|").map((p) => p.trim());
+    if (parts.length < 3) return;
+    const cantidad = Number(parts[0]) || 0;
+    const descripcion = parts[1] || "";
+    const precio = Number(parts[2]) || 0;
+    if (!cantidad || !precio) return;
+
+    items.push({ cantidad, descripcion, precio });
   });
 
-  if (!numeroInput.value.trim()) {
-    alert("Escribe un número de factura.");
-    return null;
-  }
-  if (!clienteInput.value.trim()) {
-    alert("Escribe el nombre del cliente.");
-    return null;
-  }
-  if (!items.length) {
-    alert("Añade al menos una línea a la factura.");
-    return null;
-  }
+  return items;
+}
 
+function recalcularFactura(f) {
+  const items = f.items || [];
   let subtotal = 0;
   items.forEach((it) => {
-    subtotal += (it.cantidad || 0) * (it.precio || 0);
+    subtotal += (Number(it.cantidad) || 0) * (Number(it.precio) || 0);
   });
-  const taxPercent = Number(taxPercentInput.value || 0);
+  const taxPercent = Number(f.taxPercent) || 0;
   const taxAmount = subtotal * (taxPercent / 100);
   const total = subtotal + taxAmount;
 
-  return {
-    numero: numeroInput.value.trim(),
-    fecha: fechaInput.value || todayISO(),
-    cliente: clienteInput.value.trim(),
-    clienteDireccion: dirCliInput.value.trim(),
-    notas: notasInput.value.trim(),
-    items,
-    subtotal,
-    taxPercent,
-    taxAmount,
-    total,
-  };
+  f.subtotal = subtotal;
+  f.taxPercent = taxPercent;
+  f.taxAmount = taxAmount;
+  f.total = total;
 }
 
+function syncFacturaToMovimientos(factura) {
+  // Crea o actualiza un movimiento de ingreso vinculado a la factura
+  if (!factura.fecha) factura.fecha = todayISO();
+
+  let mov = null;
+  if (factura.movId) {
+    mov = movimientos.find((m) => m.id === factura.movId);
+  }
+
+  if (!mov) {
+    mov = {
+      id: factura.movId || ("mov-" + Date.now()),
+      createdAt: Date.now()
+    };
+    movimientos.push(mov);
+  }
+
+  mov.tipo = "ingreso";
+  mov.fecha = factura.fecha;
+  mov.descripcion = `Factura ${factura.numero} - ${factura.cliente || ""}`;
+  mov.categoria = "Factura";
+  mov.metodo = factura.metodo || "Otro";
+  mov.monto = factura.total || 0;
+
+  factura.movId = mov.id;
+
+  saveMovimientos();
+}
+
+// Render tabla de facturas
 function renderFacturasTable() {
   const tbody = document.getElementById("tbody-facturas");
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const ordenadas = [...facturas].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const ordenadas = facturas
+    .slice()
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
   ordenadas.forEach((f) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${f.numero}</td>
-      <td>${f.fecha}</td>
-      <td>${f.cliente}</td>
+      <td>${f.numero || ""}</td>
+      <td>${f.fecha || ""}</td>
+      <td>${f.cliente || ""}</td>
       <td class="right">${formatMoney(f.total || 0)}</td>
       <td>
-        <button type="button" class="btn-mini" data-fact-edit="${f.id}">Editar</button>
-        <button type="button" class="btn-mini-outline" data-fact-pdf="${f.id}">PDF</button>
+        <button class="btn-small" data-edit-factura="${f.id}">Editar</button>
+        <button class="btn-small-outline" data-pdf-factura="${f.id}">PDF</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
 
-// ===== PDF FACTURA (jsPDF) =====
+function fillFacturaForm(f) {
+  document.getElementById("fac-id").value = f.id || "";
+  document.getElementById("fac-numero").value = f.numero || "";
+  document.getElementById("fac-fecha").value = f.fecha || todayISO();
+  document.getElementById("fac-cliente").value = f.cliente || "";
+  document.getElementById("fac-cliente-dir").value = f.clienteDireccion || "";
+  document.getElementById("fac-metodo").value = f.metodo || "Efectivo";
+  document.getElementById("fac-tax").value = f.taxPercent ?? 0;
+  document.getElementById("fac-notas").value = f.notas || "";
+
+  const itemsText = (f.items || [])
+    .map((it) => `${it.cantidad} | ${it.descripcion} | ${it.precio}`)
+    .join("\n");
+  document.getElementById("fac-items-text").value = itemsText;
+}
+
+function clearFacturaForm() {
+  document.getElementById("fac-id").value = "";
+  document.getElementById("fac-numero").value = "";
+  document.getElementById("fac-fecha").value = todayISO();
+  document.getElementById("fac-cliente").value = "";
+  document.getElementById("fac-cliente-dir").value = "";
+  document.getElementById("fac-metodo").value = "Efectivo";
+  document.getElementById("fac-items-text").value = "";
+  document.getElementById("fac-tax").value = 0;
+  document.getElementById("fac-notas").value = "";
+}
 
 function generateFacturaPdf(factura) {
-  let jsPDFConstructor = null;
-  if (window.jspdf && window.jspdf.jsPDF) {
-    jsPDFConstructor = window.jspdf.jsPDF;
-  } else if (window.jsPDF) {
-    jsPDFConstructor = window.jsPDF;
-  }
-
-  if (!jsPDFConstructor) {
-    alert("jsPDF no está cargado, verifica el script en index.html.");
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    console.error("jsPDF no encontrado en window.jspdf.jsPDF");
+    alert("jsPDF no está cargado. Revisa que el <script> del CDN esté ANTES de app.js.");
     return;
   }
 
-  const doc = new jsPDFConstructor("p", "mm", "letter");
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF("p", "mm", "letter");
 
   const marginLeft = 15;
   let cursorY = 18;
 
+  // LOGO
   if (invoiceLogoBase64) {
     try {
       doc.addImage(invoiceLogoBase64, "PNG", marginLeft, 10, 40, 20);
     } catch (e) {
-      console.warn("Error añadiendo logo:", e);
+      console.warn("Error añadiendo logo a PDF:", e);
     }
   }
 
+  // DATOS DE LA EMPRESA
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   const nombre = config.nombreNegocio || "Mi negocio";
@@ -795,17 +561,18 @@ function generateFacturaPdf(factura) {
   if (dir) empresaLines.push(dir);
   if (tel) empresaLines.push("Tel: " + tel);
   if (email) empresaLines.push("Email: " + email);
-
   empresaLines.forEach((line, i) => {
     doc.text(line, 110, 24 + i * 5);
   });
 
+  // TÍTULO FACTURA
   cursorY = 50;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.text("FACTURA", marginLeft, cursorY);
   cursorY += 8;
 
+  // INFO FACTURA + CLIENTE
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.text(`Factura: ${factura.numero}`, marginLeft, cursorY);
@@ -821,6 +588,7 @@ function generateFacturaPdf(factura) {
 
   cursorY += 18;
 
+  // TABLA DE ITEMS
   const startY = cursorY;
   doc.setFont("helvetica", "bold");
   doc.text("Descripción", marginLeft, startY);
@@ -834,7 +602,7 @@ function generateFacturaPdf(factura) {
   doc.setFont("helvetica", "normal");
   cursorY = startY + 8;
 
-  factura.items.forEach((it) => {
+  (factura.items || []).forEach((it) => {
     const descLines = doc.splitTextToSize(it.descripcion || "", 90);
     const lineHeight = 5 * descLines.length;
     const totalLinea = (it.cantidad || 0) * (it.precio || 0);
@@ -847,6 +615,7 @@ function generateFacturaPdf(factura) {
     cursorY += lineHeight + 2;
   });
 
+  // RESUMEN
   cursorY += 4;
   doc.text("Subtotal:", 140, cursorY);
   doc.text(formatMoney(factura.subtotal || 0), 180, cursorY, { align: "right" });
@@ -860,6 +629,7 @@ function generateFacturaPdf(factura) {
   doc.text("Total:", 140, cursorY);
   doc.text(formatMoney(factura.total || 0), 180, cursorY, { align: "right" });
 
+  // NOTAS
   cursorY += 12;
   if (factura.notas) {
     doc.setFont("helvetica", "normal");
@@ -872,18 +642,124 @@ function generateFacturaPdf(factura) {
   doc.save(`Factura-${factura.numero}.pdf`);
 }
 
-// ===== INIT =====
+function setupFacturasModule() {
+  const form = document.getElementById("form-factura");
+  const btnNueva = document.getElementById("btn-factura-nueva");
+  const btnGuardarPdf = document.getElementById("btn-factura-guardar-pdf");
+  const tbody = document.getElementById("tbody-facturas");
+
+  clearFacturaForm();
+  renderFacturasTable();
+
+  btnNueva?.addEventListener("click", () => {
+    clearFacturaForm();
+  });
+
+  form?.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const id = document.getElementById("fac-id").value || null;
+    const numero = document.getElementById("fac-numero").value.trim();
+    const fecha = document.getElementById("fac-fecha").value || todayISO();
+    const cliente = document.getElementById("fac-cliente").value.trim();
+    const clienteDir = document.getElementById("fac-cliente-dir").value.trim();
+    const metodo = document.getElementById("fac-metodo").value;
+    const itemsText = document.getElementById("fac-items-text").value;
+    const taxPercent = Number(document.getElementById("fac-tax").value) || 0;
+    const notas = document.getElementById("fac-notas").value.trim();
+
+    if (!numero || !cliente) {
+      alert("Número de factura y cliente son obligatorios.");
+      return;
+    }
+
+    const items = parseItemsFromText(itemsText);
+    if (items.length === 0) {
+      alert("Debes añadir al menos un ítem con cantidad | descripción | precio.");
+      return;
+    }
+
+    let factura = null;
+    if (id) {
+      factura = facturas.find((f) => f.id === id);
+    }
+    if (!factura) {
+      factura = {
+        id: "fac-" + Date.now(),
+        createdAt: Date.now()
+      };
+      facturas.push(factura);
+    }
+
+    factura.numero = numero;
+    factura.fecha = fecha;
+    factura.cliente = cliente;
+    factura.clienteDireccion = clienteDir;
+    factura.metodo = metodo;
+    factura.items = items;
+    factura.taxPercent = taxPercent;
+    factura.notas = notas;
+
+    recalcularFactura(factura);
+    syncFacturaToMovimientos(factura);
+    saveFacturas();
+    saveMovimientos();
+
+    renderFacturasTable();
+    renderKpis();
+    renderTablas();
+    fillFacturaForm(factura);
+
+    alert("Factura guardada.");
+  });
+
+  btnGuardarPdf?.addEventListener("click", () => {
+    // Guardar primero con el submit (simulado)
+    form.requestSubmit();
+
+    const id = document.getElementById("fac-id").value;
+    if (!id) {
+      alert("Primero guarda la factura.");
+      return;
+    }
+    const factura = facturas.find((f) => f.id === id);
+    if (!factura) {
+      alert("No se encontró la factura para PDF.");
+      return;
+    }
+    generateFacturaPdf(factura);
+  });
+
+  tbody?.addEventListener("click", (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const editId = target.getAttribute("data-edit-factura");
+    const pdfId = target.getAttribute("data-pdf-factura");
+
+    if (editId) {
+      const f = facturas.find((ff) => ff.id === editId);
+      if (!f) return;
+      fillFacturaForm(f);
+    } else if (pdfId) {
+      const f = facturas.find((ff) => ff.id === pdfId);
+      if (!f) return;
+      generateFacturaPdf(f);
+    }
+  });
+}
+
+// ========== INIT ==========
 
 document.addEventListener("DOMContentLoaded", () => {
   loadFromStorage();
   renderTopbarDate();
   setupNavigation();
-  setupModalMovimiento();
-  setupExportButtonsMovimientos();
+  setupModal();
+  setupExportButtons();
   setupConfig();
   setupLogout();
-  setupFacturasUI();
+  setupFacturasModule();
   renderKpis();
   renderTablas();
-  renderFacturasTable();
 });
