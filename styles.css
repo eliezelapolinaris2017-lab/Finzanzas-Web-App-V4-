@@ -1,0 +1,764 @@
+/* ================== RESET BÁSICO ================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: radial-gradient(circle at top left, #1d2333 0, #05070d 55%, #020308 100%);
+  color: #f5f5f5;
+  overflow: hidden; /* app de escritorio, sin scroll global */
+}
+
+/* ================== LAYOUT PRINCIPAL ================== */
+
+.app-shell {
+  width: 1280px;           /* ancho fijo de escritorio */
+  max-width: 1400px;
+  height: 720px;           /* alto tipo laptop */
+  max-height: 90vh;
+  margin: 24px auto;
+  display: flex;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #05070d 0, #070b16 50%, #05070d 100%);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+}
+
+/* ================== SIDEBAR ================== */
+
+.sidebar {
+  width: 260px;
+  background: linear-gradient(180deg, #05060b 0, #05070f 45%, #050609 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 18px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #0a0e1a;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+}
+
+.sidebar-brand .brand-title {
+  font-weight: 700;
+  font-size: 17px;
+  color: #fdfdfd;
+}
+
+.sidebar-brand .brand-subtitle {
+  font-size: 11px;
+  color: #a7b3d8;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.nav-item {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #ced6ff;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.08s ease;
+}
+
+.nav-item .nav-icon {
+  font-size: 16px;
+}
+
+.nav-item:hover {
+  background: rgba(199, 162, 75, 0.12);
+  color: #ffffff;
+  transform: translateX(1px);
+}
+
+.nav-item.active {
+  background: linear-gradient(90deg, #c7a24b 0, #e8c76b 100%);
+  color: #05070d;
+  font-weight: 600;
+}
+
+/* Footer de sidebar */
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #c7a24b, #f1d58a);
+  color: #05070d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.user-role {
+  font-size: 11px;
+  color: #9ca9d2;
+}
+
+/* Caja nube / login */
+.cloud-box {
+  margin-top: 6px;
+  padding: 8px 9px;
+  border-radius: 12px;
+  background: rgba(10, 14, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cloud-status-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9097be;
+}
+
+.cloud-status-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #f3f3f7;
+}
+
+.cloud-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* ================== BOTONES ================== */
+
+.btn-primary,
+.btn-secondary,
+.btn-outline,
+.btn-small,
+.btn-small-outline,
+.btn-mini,
+.btn-mini-outline {
+  font-family: inherit;
+  border-radius: 999px;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #c7a24b, #f3d58b);
+  color: #05070d;
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+}
+
+.btn-secondary {
+  background: rgba(199, 162, 75, 0.14);
+  color: #f9f2d6;
+  border: 1px solid rgba(199, 162, 75, 0.4);
+}
+
+.btn-secondary:hover {
+  background: rgba(199, 162, 75, 0.28);
+}
+
+.btn-outline {
+  background: transparent;
+  color: #e3e8ff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-small,
+.btn-small-outline {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+.btn-small-outline {
+  background: transparent;
+  color: #c7a24b;
+  border: 1px solid rgba(199, 162, 75, 0.7);
+}
+
+.btn-small-outline:hover {
+  background: rgba(199, 162, 75, 0.18);
+}
+
+.btn-mini,
+.btn-mini-outline {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.btn-mini {
+  background: rgba(199, 162, 75, 0.27);
+  color: #fdfdfd;
+}
+
+.btn-mini-outline {
+  background: transparent;
+  color: #ddddff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.btn-mini-outline:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ================== MAIN / TOPBAR ================== */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  overflow: hidden; /* scroll solo interno en secciones */
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.page-subtitle {
+  font-size: 12px;
+  color: #a2afd9;
+  margin-top: 2px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-date {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(11, 15, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: #d3ddff;
+}
+
+/* ================== SECCIONES ================== */
+
+.section {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.section.active-section {
+  display: flex;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.section-header h2 {
+  font-size: 16px;
+}
+
+/* ================== GRID DASHBOARD ================== */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.kpi-card {
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 55%),
+    linear-gradient(150deg, #060813, #05060f);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-card-income {
+  border-color: rgba(0, 204, 153, 0.6);
+}
+
+.kpi-card-expense {
+  border-color: rgba(255, 82, 110, 0.7);
+}
+
+.kpi-card-balance {
+  border-color: rgba(199, 162, 75, 0.9);
+}
+
+.kpi-card-total {
+  border-color: rgba(137, 157, 255, 0.7);
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: #a3aed4;
+}
+
+.kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.kpi-footer {
+  font-size: 11px;
+  color: #cfd6ff;
+  margin-top: 4px;
+}
+
+/* ================== PANELES / TABLAS ================== */
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.1fr;
+  gap: 12px;
+  height: calc(100% - 140px);
+}
+
+.panel {
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 55%),
+    linear-gradient(150deg, #05060f, #05050d);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.01),
+    0 14px 30px rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 11px;
+  min-height: 0;
+}
+
+.panel-tight {
+  padding: 8px 9px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.panel-header h2,
+.panel-header h3 {
+  font-size: 14px;
+}
+
+.table-wrapper {
+  flex: 1;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(2, 5, 15, 0.9);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-table thead {
+  background: linear-gradient(90deg, rgba(199, 162, 75, 0.25), transparent);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.data-table th,
+.data-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.data-table th {
+  text-align: left;
+  color: #f7f0d5;
+  font-weight: 600;
+}
+
+.data-table td {
+  color: #dde2ff;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.data-table tbody tr:hover {
+  background: rgba(199, 162, 75, 0.12);
+}
+
+.data-table .right {
+  text-align: right;
+}
+
+/* Compacta para items de factura */
+.data-table-compact th,
+.data-table-compact td {
+  padding: 4px 6px;
+}
+
+/* ================== SECCIONES LARGAS (INGRESOS, GASTOS, FACTURAS, CONFIG) ================== */
+
+#section-ingresos,
+#section-gastos,
+#section-facturas,
+#section-config,
+#section-reportes {
+  padding-top: 4px;
+}
+
+#section-ingresos .table-wrapper,
+#section-gastos .table-wrapper,
+#section-facturas .table-wrapper {
+  height: calc(100% - 40px);
+}
+
+/* ================== CAMPOS / FORM ================== */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.field span {
+  color: #c8d1ff;
+}
+
+.field input,
+.field select,
+.field textarea {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(4, 7, 18, 0.95);
+  color: #f5f6ff;
+  padding: 6px 9px;
+  outline: none;
+  font-size: 12px;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: #c7a24b;
+  box-shadow: 0 0 0 1px rgba(199, 162, 75, 0.6);
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+/* ================== CONFIG GRID ================== */
+
+.config-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.9fr 1fr;
+  gap: 10px;
+  height: calc(100% - 42px);
+}
+
+/* Divider */
+.divider {
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.18);
+  margin: 8px 0;
+}
+
+/* Logo facturas */
+.invoice-logo-preview-box {
+  margin-top: 6px;
+}
+
+.invoice-logo-preview {
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(4, 7, 18, 0.9);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.invoice-logo-img {
+  max-width: 150px;
+  max-height: 60px;
+  object-fit: contain;
+}
+
+/* Nube en config */
+.cloud-buttons {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+/* ================== TEXTOS ================== */
+
+.muted {
+  font-size: 11px;
+  color: #919ac7;
+}
+
+/* ================== MODALES ================== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-backdrop.show {
+  display: flex;
+}
+
+.modal {
+  width: 520px; /* tamaño fijo desktop */
+  max-width: 90%;
+  max-height: 90vh;
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 55%),
+    linear-gradient(145deg, #060713, #05050b);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-lg {
+  width: 920px;  /* modal facturas grande de escritorio */
+}
+
+.modal-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-header h2 {
+  font-size: 15px;
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  color: #cfd6ff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 10px 14px;
+  overflow: auto;
+}
+
+.modal-footer {
+  padding: 8px 14px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ================== MODAL FACTURA ================== */
+
+.invoice-header-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.invoice-totals-grid {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.invoice-totals-box {
+  border-radius: 14px;
+  background: rgba(4, 7, 18, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.totals-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.totals-row-strong {
+  font-weight: 700;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+/* Inputs líneas factura */
+.inv-item-desc,
+.inv-item-qty,
+.inv-item-price {
+  width: 100%;
+  font-size: 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(3, 5, 15, 0.95);
+  color: #f4f7ff;
+  padding: 3px 6px;
+  outline: none;
+}
+
+.inv-item-desc:focus,
+.inv-item-qty:focus,
+.inv-item-price:focus {
+  border-color: #c7a24b;
+}
+
+/* Botón mini en tabla */
+.btn-mini-outline.inv-item-remove {
+  padding: 2px 6px;
+}
+
+/* ================== REPORTES ================== */
+
+#section-reportes .muted {
+  margin-top: 4px;
+}
+
+/* ================== SCROLLBARS (DESKTOP LOOK) ================== */
+
+.table-wrapper::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb {
+  background: rgba(199, 162, 75, 0.7);
+  border-radius: 999px;
+}
+
+/* ================== SOLO UN PEQUEÑO AJUSTE RESPONSIVE MINIMO ================== */
+/* No es "móvil", solo evita romperse si la pantalla es más pequeña que 1280 */
+@media (max-width: 1100px) {
+  .app-shell {
+    transform: scale(0.9);
+    transform-origin: top center;
+  }
+}
