@@ -6,9 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Panel financiero moderno para gestionar ingresos, gastos, facturas y balance de tu negocio.">
   <link rel="icon" type="image/png" href="assets/logo.png" />
-  <!-- (Opcional) manifest / service-worker para PWA más adelante -->
-  <!-- <link rel="manifest" href="manifest.json" /> -->
-
   <!-- Fuente -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -63,15 +60,9 @@
             <div class="user-role">Finanzas</div>
           </div>
         </div>
-
-        <div class="cloud-box">
-          <div class="cloud-status-label">Nube</div>
-          <div class="cloud-status-text" id="cloud-status">Sin conexión</div>
-          <div class="cloud-actions">
-            <button class="btn-small" id="btn-login">Login Google</button>
-            <button class="btn-small-outline" id="btn-logout" style="display:none;">Salir</button>
-          </div>
-        </div>
+        <button class="btn-outline" id="btn-logout">
+          Cerrar sesión
+        </button>
       </div>
     </aside>
 
@@ -92,7 +83,7 @@
         </div>
       </header>
 
-      <!-- DASHBOARD SECTION -->
+      <!-- DASHBOARD -->
       <section id="section-dashboard" class="section active-section">
 
         <!-- KPIs -->
@@ -130,7 +121,7 @@
           </article>
         </div>
 
-        <!-- TABLAS -->
+        <!-- TABLAS RESUMEN -->
         <div class="panel-grid">
           <!-- Ingresos recientes -->
           <section class="panel">
@@ -153,7 +144,7 @@
                   </tr>
                 </thead>
                 <tbody id="tbody-ingresos">
-                  <!-- Render dinámico -->
+                  <!-- dinámico -->
                 </tbody>
               </table>
             </div>
@@ -180,7 +171,7 @@
                   </tr>
                 </thead>
                 <tbody id="tbody-gastos">
-                  <!-- Render dinámico -->
+                  <!-- dinámico -->
                 </tbody>
               </table>
             </div>
@@ -188,7 +179,7 @@
         </div>
       </section>
 
-      <!-- INGRESOS SECTION -->
+      <!-- INGRESOS -->
       <section id="section-ingresos" class="section">
         <div class="section-header">
           <h2>Todos los ingresos</h2>
@@ -210,7 +201,7 @@
         </div>
       </section>
 
-      <!-- GASTOS SECTION -->
+      <!-- GASTOS -->
       <section id="section-gastos" class="section">
         <div class="section-header">
           <h2>Todos los gastos</h2>
@@ -232,16 +223,19 @@
         </div>
       </section>
 
-      <!-- FACTURAS SECTION -->
+      <!-- FACTURAS (VISTA CLÁSICA ESCRITORIO) -->
       <section id="section-facturas" class="section">
         <div class="section-header">
-          <h2>Facturación profesional</h2>
-          <button class="btn-primary" id="btn-new-invoice">+ Nueva factura</button>
+          <h2>Facturas</h2>
         </div>
 
-        <div class="panel">
+        <!-- LISTADO DE FACTURAS (ARRIBA) -->
+        <section class="panel">
           <div class="panel-header">
             <h3>Listado de facturas</h3>
+            <div class="panel-actions">
+              <button class="btn-secondary" id="btn-factura-nueva">Nueva factura</button>
+            </div>
           </div>
           <div class="table-wrapper">
             <table class="data-table">
@@ -251,38 +245,100 @@
                   <th>Fecha</th>
                   <th>Cliente</th>
                   <th class="right">Total</th>
-                  <th>Estado</th>
-                  <th class="right">Acciones</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
-              <tbody id="tbody-facturas">
-                <!-- Render dinámico -->
-              </tbody>
+              <tbody id="tbody-facturas"></tbody>
             </table>
           </div>
-        </div>
+        </section>
+
+        <!-- FORMULARIO FACTURA (ABAJO, FULL WIDTH) -->
+        <section class="panel">
+          <h3>Crear / editar factura</h3>
+          <form id="form-factura">
+            <input type="hidden" id="fac-id">
+
+            <div class="form-grid-3">
+              <label class="field">
+                <span>Número de factura</span>
+                <input type="text" id="fac-numero" required placeholder="Ej. 2025-001">
+              </label>
+
+              <label class="field">
+                <span>Fecha</span>
+                <input type="date" id="fac-fecha" required>
+              </label>
+
+              <label class="field">
+                <span>Método de pago</span>
+                <select id="fac-metodo">
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="ATH Móvil">ATH Móvil</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Tarjeta">Tarjeta</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="form-grid-2">
+              <label class="field">
+                <span>Cliente</span>
+                <input type="text" id="fac-cliente" required placeholder="Nombre del cliente">
+              </label>
+
+              <label class="field">
+                <span>Dirección del cliente</span>
+                <textarea id="fac-cliente-dir" rows="2" placeholder="Dirección de facturación"></textarea>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Ítems (una línea por ítem: cantidad | descripción | precio)</span>
+              <textarea id="fac-items-text" rows="5" placeholder="1 | Mantenimiento profundo | 150.00"></textarea>
+            </label>
+
+            <div class="form-grid-2">
+              <label class="field">
+                <span>Impuesto (%)</span>
+                <input type="number" id="fac-tax" value="0" min="0" step="0.01">
+              </label>
+
+              <label class="field">
+                <span>Notas</span>
+                <textarea id="fac-notas" rows="2" placeholder="Notas en la parte baja de la factura"></textarea>
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Guardar factura</button>
+              <button type="button" class="btn-secondary" id="btn-factura-guardar-pdf">Guardar + PDF</button>
+              <button type="button" class="btn-outline" id="btn-factura-nueva-secundario">Limpiar formulario</button>
+            </div>
+          </form>
+        </section>
       </section>
 
-      <!-- REPORTES SECTION -->
+      <!-- REPORTES (placeholder) -->
       <section id="section-reportes" class="section">
         <div class="section-header">
           <h2>Reportes y estadísticas</h2>
         </div>
         <p class="muted">
-          Aquí podrás ver gráficos y análisis más avanzados (ingresos vs gastos, comparación por mes, etc).
+          Aquí podrás ver gráficos y análisis más avanzados (ingresos vs gastos, comparación por mes, etc.).
           Por ahora, el resumen principal está en el Dashboard.
         </p>
       </section>
 
-      <!-- CONFIG SECTION -->
+      <!-- CONFIGURACIÓN -->
       <section id="section-config" class="section">
         <div class="section-header">
           <h2>Configuración</h2>
         </div>
 
         <div class="config-grid">
-          <!-- Datos negocio -->
-          <div class="panel">
+          <section class="panel">
             <h3>Datos del negocio</h3>
             <label class="field">
               <span>Nombre del negocio</span>
@@ -293,66 +349,36 @@
               <input type="text" id="config-moneda" value="$">
             </label>
             <label class="field">
-              <span>ID o Registro contribuyente</span>
-              <input type="text" id="config-company-id" placeholder="Ej. 66-1234567">
-            </label>
-            <label class="field">
-              <span>Dirección</span>
-              <textarea id="config-company-address" rows="2" placeholder="Calle, urbanización, pueblo, ZIP"></textarea>
+              <span>Dirección del negocio</span>
+              <textarea id="config-empresa-direccion" rows="2"></textarea>
             </label>
             <label class="field">
               <span>Teléfono</span>
-              <input type="text" id="config-company-phone" placeholder="787-000-0000">
+              <input type="text" id="config-empresa-telefono" placeholder="787-000-0000">
             </label>
             <label class="field">
               <span>Email</span>
-              <input type="email" id="config-company-email" placeholder="info@tu-negocio.com">
+              <input type="email" id="config-empresa-email" placeholder="correo@ejemplo.com">
+            </label>
+            <label class="field">
+              <span>Logo para facturas (PNG)</span>
+              <input type="file" id="config-logo-factura" accept="image/png,image/jpeg">
             </label>
             <button class="btn-primary" id="btn-guardar-config">Guardar configuración</button>
-          </div>
+          </section>
 
-          <!-- Logo facturas -->
-          <div class="panel">
-            <h3>Logo para facturas</h3>
-            <p class="muted">
-              Sube el logo que se usará en la cabecera de tus facturas.
-            </p>
-            <label class="field">
-              <span>Seleccionar archivo (PNG/JPG)</span>
-              <input type="file" id="invoice-logo-input" accept="image/*">
-            </label>
-            <div class="invoice-logo-preview-box">
-              <span class="muted">Vista previa:</span>
-              <div class="invoice-logo-preview" id="invoice-logo-preview">
-                <!-- Imagen por JS si existe -->
-              </div>
-            </div>
-          </div>
-
-          <!-- Backup / nube -->
-          <div class="panel">
-            <h3>Copias de seguridad y nube</h3>
-            <p class="muted">Descarga un respaldo completo y sincroniza con Firebase.</p>
+          <section class="panel">
+            <h3>Exportar todo</h3>
+            <p class="muted">Descarga un respaldo completo de tus movimientos (ingresos + gastos) en CSV.</p>
             <button class="btn-secondary" id="btn-export-todo">Exportar CSV completo</button>
-
-            <div class="divider"></div>
-
-            <h4>Sincronizar con la nube (Firebase)</h4>
-            <p class="muted">
-              Usa tu cuenta de Google para guardar y recuperar todos los movimientos y facturas en la nube.
-            </p>
-            <div class="cloud-buttons">
-              <button class="btn-secondary" id="btn-cloud-pull">⬇ Traer de la nube</button>
-              <button class="btn-primary" id="btn-cloud-push">⬆ Guardar en la nube</button>
-            </div>
-          </div>
+          </section>
         </div>
       </section>
 
     </main>
   </div>
 
-  <!-- MODAL MOVIMIENTO -->
+  <!-- MODAL MOVIMIENTO (ingreso / gasto) -->
   <div class="modal-backdrop" id="modal-movimiento">
     <div class="modal">
       <header class="modal-header">
@@ -405,106 +431,9 @@
     </div>
   </div>
 
-  <!-- MODAL FACTURA -->
-  <div class="modal-backdrop" id="modal-invoice">
-    <div class="modal modal-lg">
-      <header class="modal-header">
-        <h2 id="invoice-modal-title">Nueva factura</h2>
-        <button class="modal-close" id="invoice-modal-close">✕</button>
-      </header>
-      <form id="invoice-form" class="modal-body">
-
-        <div class="invoice-header-grid">
-          <div>
-            <label class="field">
-              <span>Número de factura</span>
-              <input type="text" id="invoice-number" placeholder="Ej. 2025-001" required>
-            </label>
-            <label class="field">
-              <span>Fecha</span>
-              <input type="date" id="invoice-date" required>
-            </label>
-            <label class="field">
-              <span>Vencimiento</span>
-              <input type="date" id="invoice-due">
-            </label>
-          </div>
-
-          <div>
-            <label class="field">
-              <span>Cliente</span>
-              <input type="text" id="invoice-client-name" placeholder="Nombre del cliente" required>
-            </label>
-            <label class="field">
-              <span>Email del cliente</span>
-              <input type="email" id="invoice-client-email" placeholder="cliente@correo.com">
-            </label>
-            <label class="field">
-              <span>Teléfono del cliente</span>
-              <input type="text" id="invoice-client-phone" placeholder="787-000-0000">
-            </label>
-          </div>
-        </div>
-
-        <label class="field">
-          <span>Notas (opcional)</span>
-          <textarea id="invoice-notes" rows="2" placeholder="Notas internas o condiciones de pago"></textarea>
-        </label>
-
-        <div class="panel panel-tight">
-          <div class="panel-header">
-            <h3>Conceptos / líneas de factura</h3>
-            <button type="button" class="btn-small" id="btn-add-invoice-item">+ Añadir línea</button>
-          </div>
-          <div class="table-wrapper">
-            <table class="data-table data-table-compact">
-              <thead>
-                <tr>
-                  <th>Descripción</th>
-                  <th class="right">Cant.</th>
-                  <th class="right">Precio</th>
-                  <th class="right">Total</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="invoice-items-body">
-                <!-- Filas dinámicas -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="invoice-totals-grid">
-          <div></div>
-          <div class="invoice-totals-box">
-            <div class="totals-row">
-              <span>Subtotal</span>
-              <span id="invoice-subtotal-display">$0.00</span>
-            </div>
-            <div class="totals-row">
-              <span>Impuestos / IVU (%)</span>
-              <input type="number" id="invoice-tax-rate" step="0.01" min="0" max="30" value="0">
-            </div>
-            <div class="totals-row totals-row-strong">
-              <span>Total</span>
-              <span id="invoice-total-display">$0.00</span>
-            </div>
-          </div>
-        </div>
-
-        <footer class="modal-footer">
-          <button type="button" class="btn-secondary" id="invoice-modal-cancel">
-            Cancelar
-          </button>
-          <button type="submit" class="btn-primary">
-            Guardar factura
-          </button>
-        </footer>
-      </form>
-    </div>
-  </div>
-
-  <!-- IMPORTANTE: type="module" -->
-  <script type="module" src="app.js?v=6"></script>
+  <!-- jsPDF (OBLIGATORIO antes de app.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Lógica Nexus Finance -->
+  <script src="app.js?v=6"></script>
 </body>
 </html>
