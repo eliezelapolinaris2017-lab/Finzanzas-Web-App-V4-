@@ -823,3 +823,14 @@ button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* Editores de Facturas, Cotizaciones y Clientes
+   -> Ocultos por defecto, visibles solo con .editor-open */
+.doc-editor {
+  display: none;          /* OCULTO SIEMPRE */
+  margin-top: 1.5rem;
+}
+
+.doc-editor.editor-open {
+  display: block;         /* SE VE SOLO CUANDO EL JS LE PONE editor-open */
+}
+
