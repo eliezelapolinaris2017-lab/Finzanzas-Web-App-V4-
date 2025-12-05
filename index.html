@@ -1,0 +1,113 @@
+<!-- PANEL FORMULARIO COTIZACIÓN -->
+<div id="cotizacion-form-panel" class="side-panel hidden">
+  <div class="side-panel-header">
+    <h2>Cotización</h2>
+    <button type="button" class="side-panel-close" id="btn-cot-cancel">✕</button>
+  </div>
+
+  <form id="form-cotizacion" class="side-panel-body">
+    <input type="hidden" id="cot-id">
+
+    <div class="panel-grid">
+      <div class="panel">
+        <h3>Datos de la cotización</h3>
+
+        <label class="field">
+          <span>Número de cotización</span>
+          <input type="text" id="cot-numero" placeholder="Ej. C-2025-001" required>
+        </label>
+
+        <label class="field">
+          <span>Fecha</span>
+          <input type="date" id="cot-fecha" required>
+        </label>
+
+        <label class="field">
+          <span>Cliente</span>
+          <input type="text" id="cot-cliente" placeholder="Nombre del cliente" required>
+        </label>
+
+        <label class="field">
+          <span>Dirección del cliente</span>
+          <input type="text" id="cot-dir" placeholder="Dirección">
+        </label>
+
+        <label class="field">
+          <span>Email del cliente</span>
+          <input type="email" id="cot-email" placeholder="correo@cliente.com">
+        </label>
+
+        <label class="field">
+          <span>Teléfono del cliente</span>
+          <input type="text" id="cot-tel" placeholder="787-000-0000">
+        </label>
+
+        <label class="field">
+          <span>Método de pago estimado</span>
+          <select id="cot-metodo">
+            <option value="Efectivo">Efectivo</option>
+            <option value="ATH Móvil">ATH Móvil</option>
+            <option value="Transferencia">Transferencia</option>
+            <option value="Tarjeta">Tarjeta</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="panel">
+        <h3>Ítems cotizados</h3>
+
+        <div class="table-wrapper compact">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Descripción</th>
+                <th>Cant.</th>
+                <th>Precio</th>
+                <th>Imp%</th>
+                <th class="right">Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cot-items-body">
+              <!-- Filas dinámicas -->
+            </tbody>
+          </table>
+        </div>
+
+        <button type="button" class="btn-small" id="btn-cot-add-item">
+          + Añadir ítem
+        </button>
+
+        <div class="totals-box">
+          <div class="totals-row">
+            <span>Subtotal</span>
+            <span id="cot-subtotal">$0.00</span>
+          </div>
+          <div class="totals-row">
+            <span>Impuesto</span>
+            <span id="cot-impuesto">$0.00</span>
+          </div>
+          <div class="totals-row total">
+            <span>Total</span>
+            <span id="cot-total">$0.00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>Notas en la cotización (opcional)</span>
+      <textarea id="cot-notas" rows="3" placeholder="Condiciones, vigencia, etc."></textarea>
+    </label>
+
+    <footer class="side-panel-footer">
+      <button type="button" class="btn-secondary" id="btn-cot-cancel-footer">
+        Cancelar
+      </button>
+      <button type="submit" class="btn-primary">
+        Guardar cotización
+      </button>
+    </footer>
+  </form>
+</div>
