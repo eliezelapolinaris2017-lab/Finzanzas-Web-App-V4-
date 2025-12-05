@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   MOVIMIENTOS: "nexus-finance-movimientos",
   FACTURAS: "nexus-finance-facturas",
   COTIZACIONES: "nexus-finance-cotizaciones",
+  CLIENTES: "nexus-finance-clientes",
   CONFIG: "nexus-finance-config",
 };
 
@@ -13,6 +14,7 @@ const STORAGE_KEYS = {
 let movimientos = [];   // ingresos + gastos
 let facturas = [];
 let cotizaciones = [];
+let clientes = [];
 let config = {
   nombreNegocio: "",
   direccion: "",
@@ -26,16 +28,7 @@ let config = {
 let currentMovEditId = null;
 let currentFacturaId = null;
 let currentCotizacionId = null;
-
-// ======== REFERENCIA GLOBAL A JSPDF ========
-let JsPdfClass = null;
-if (window.jspdf && window.jspdf.jsPDF) {
-  // modo UMD moderno (jspdf.umd.min.js)
-  JsPdfClass = window.jspdf.jsPDF;
-} else if (window.jsPDF) {
-  // por si el CDN expone window.jsPDF directo
-  JsPdfClass = window.jsPDF;
-}
+let currentClienteId = null;
 
 // ======== UTILIDADES GENERALES ========
 function loadFromStorage() {
@@ -55,6 +48,11 @@ function loadFromStorage() {
     cotizaciones = [];
   }
   try {
+    clientes = JSON.parse(localStorage.getItem(STORAGE_KEYS.CLIENTES)) || [];
+  } catch {
+    clientes = [];
+  }
+  try {
     const rawCfg = localStorage.getItem(STORAGE_KEYS.CONFIG);
     if (rawCfg) config = { ...config, ...JSON.parse(rawCfg) };
   } catch {
@@ -70,6 +68,9 @@ function saveFacturas() {
 }
 function saveCotizaciones() {
   localStorage.setItem(STORAGE_KEYS.COTIZACIONES, JSON.stringify(cotizaciones));
+}
+function saveClientes() {
+  localStorage.setItem(STORAGE_KEYS.CLIENTES, JSON.stringify(clientes));
 }
 function saveConfig() {
   localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
@@ -489,6 +490,149 @@ function setupLogout() {
   });
 }
 
+// ======== CLIENTES ========
+function refreshClienteSelects() {
+  const selects = [
+    document.getElementById("fact-cliente-select"),
+    document.getElementById("cot-cliente-select"),
+  ];
+
+  const ordered = clientes.slice().sort((a, b) =>
+    (a.nombre || "").localeCompare(b.nombre || "", "es")
+  );
+
+  selects.forEach((sel) => {
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = `<option value="">— Seleccionar cliente —</option>`;
+    ordered.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.nombre || "(sin nombre)";
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  });
+}
+
+function renderClientesTable() {
+  const tbody = document.getElementById("tbody-clientes");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  clientes
+    .slice()
+    .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"))
+    .forEach((c) => {
+      const tr = document.createElement("tr");
+      tr.dataset.id = c.id;
+      tr.innerHTML = `
+        <td>${c.nombre || ""}</td>
+        <td>${c.telefono || ""}</td>
+        <td>${c.email || ""}</td>
+        <td>${c.direccion || ""}</td>
+        <td class="right">
+          <button class="btn-chip" data-action="edit-cliente">Editar</button>
+          <button class="btn-chip-danger" data-action="delete-cliente">Borrar</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+}
+
+function setupClientesModule() {
+  const editor = document.getElementById("cliente-editor");
+  const form = document.getElementById("cliente-form");
+  const btnNuevo = document.getElementById("btn-nuevo-cliente");
+  const btnClose = document.getElementById("cliente-editor-close");
+  const btnCancel = document.getElementById("btn-cliente-cancel");
+  const tbody = document.getElementById("tbody-clientes");
+
+  if (!editor || !form || !btnNuevo || !tbody) return;
+
+  const nombre = document.getElementById("cliente-nombre");
+  const direccion = document.getElementById("cliente-direccion");
+  const telefono = document.getElementById("cliente-telefono");
+  const email = document.getElementById("cliente-email");
+  const notas = document.getElementById("cliente-notas");
+
+  function open(cliente) {
+    editor.classList.add("editor-open");
+    currentClienteId = cliente?.id || null;
+    form.reset();
+    if (cliente) {
+      nombre.value = cliente.nombre || "";
+      direccion.value = cliente.direccion || "";
+      telefono.value = cliente.telefono || "";
+      email.value = cliente.email || "";
+      notas.value = cliente.notas || "";
+    }
+  }
+  function close() {
+    editor.classList.remove("editor-open");
+    currentClienteId = null;
+  }
+
+  btnNuevo.addEventListener("click", () => open(null));
+  btnClose?.addEventListener("click", close);
+  btnCancel?.addEventListener("click", (e) => {
+    e.preventDefault();
+    close();
+  });
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const nombreVal = nombre.value.trim();
+    if (!nombreVal) {
+      alert("El nombre del cliente es obligatorio.");
+      return;
+    }
+
+    const doc = {
+      id: currentClienteId || Date.now().toString(),
+      nombre: nombreVal,
+      direccion: direccion.value.trim(),
+      telefono: telefono.value.trim(),
+      email: email.value.trim(),
+      notas: notas.value.trim(),
+      createdAt: currentClienteId
+        ? clientes.find((c) => c.id === currentClienteId)?.createdAt || Date.now()
+        : Date.now(),
+    };
+
+    const idx = clientes.findIndex((c) => c.id === doc.id);
+    if (idx >= 0) clientes[idx] = doc;
+    else clientes.push(doc);
+
+    saveClientes();
+    renderClientesTable();
+    refreshClienteSelects();
+    close();
+  });
+
+  tbody.addEventListener("click", (e) => {
+    const btn = e.target;
+    if (!btn.dataset.action) return;
+    const tr = btn.closest("tr");
+    if (!tr) return;
+    const id = tr.dataset.id;
+    const cli = clientes.find((c) => c.id === id);
+    if (!cli) return;
+
+    if (btn.dataset.action === "edit-cliente") {
+      open(cli);
+    } else if (btn.dataset.action === "delete-cliente") {
+      if (!confirm("¿Borrar este cliente? Esto no borra sus facturas ni cotizaciones existentes.")) return;
+      clientes = clientes.filter((c) => c.id !== id);
+      saveClientes();
+      renderClientesTable();
+      refreshClienteSelects();
+    }
+  });
+
+  renderClientesTable();
+  refreshClienteSelects();
+}
+
 // ======== FACTURAS & COTIZACIONES (EDITOR CENTRAL) ========
 
 // helper: crea fila de item en una tabla de items
@@ -556,6 +700,31 @@ function recalcDocTotals(tbodyId, subId, impId, totId) {
   return { items, subtotal, impuesto, total };
 }
 
+// ---------- INTEGRACIÓN CLIENTE → FACTURA / COTIZACIÓN ----------
+function applyClienteToFactura(cli) {
+  if (!cli) return;
+  const nombre = document.getElementById("fact-cliente");
+  const dir = document.getElementById("fact-direccion");
+  const tel = document.getElementById("fact-telefono");
+  const email = document.getElementById("fact-email");
+  if (nombre) nombre.value = cli.nombre || "";
+  if (dir) dir.value = cli.direccion || "";
+  if (tel) tel.value = cli.telefono || "";
+  if (email) email.value = cli.email || "";
+}
+
+function applyClienteToCotizacion(cli) {
+  if (!cli) return;
+  const nombre = document.getElementById("cot-cliente");
+  const dir = document.getElementById("cot-direccion");
+  const tel = document.getElementById("cot-telefono");
+  const email = document.getElementById("cot-email");
+  if (nombre) nombre.value = cli.nombre || "";
+  if (dir) dir.value = cli.direccion || "";
+  if (tel) tel.value = cli.telefono || "";
+  if (email) email.value = cli.email || "";
+}
+
 // ----- FACTURAS -----
 function renderFacturasTable() {
   const tbody = document.getElementById("tbody-facturas");
@@ -589,6 +758,7 @@ function setupFacturaEditor() {
   if (!editor || !form) return;
 
   const tbodyItems = "fact-items-body";
+  const clienteSelect = document.getElementById("fact-cliente-select");
 
   function clearForm(fact) {
     form.reset();
@@ -600,6 +770,19 @@ function setupFacturaEditor() {
     document.getElementById("fact-telefono").value = fact?.telefono || "";
     document.getElementById("fact-metodo").value = fact?.metodo || "Efectivo";
     document.getElementById("fact-notas").value = fact?.notas || "";
+
+    // seleccionar cliente si hay id o nombre que coincida
+    refreshClienteSelects();
+    if (clienteSelect) {
+      if (fact?.clienteId) {
+        clienteSelect.value = fact.clienteId;
+      } else if (fact?.cliente) {
+        const cli = clientes.find((c) => c.nombre === fact.cliente);
+        clienteSelect.value = cli ? cli.id : "";
+      } else {
+        clienteSelect.value = "";
+      }
+    }
 
     const tb = document.getElementById(tbodyItems);
     if (tb) tb.innerHTML = "";
@@ -656,6 +839,13 @@ function setupFacturaEditor() {
     }
   });
 
+  // cambio de cliente en select
+  clienteSelect?.addEventListener("change", () => {
+    const id = clienteSelect.value;
+    const cli = clientes.find((c) => c.id === id);
+    applyClienteToFactura(cli);
+  });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const base = recalcDocTotals(
@@ -664,11 +854,15 @@ function setupFacturaEditor() {
       "fact-impuesto",
       "fact-total"
     );
+
+    const clienteIdSel = clienteSelect ? clienteSelect.value || null : null;
+
     const doc = {
       id: currentFacturaId || Date.now().toString(),
       numero: document.getElementById("fact-numero").value.trim(),
       fecha: document.getElementById("fact-fecha").value || todayISO(),
       cliente: document.getElementById("fact-cliente").value.trim(),
+      clienteId: clienteIdSel,
       direccion: document.getElementById("fact-direccion").value.trim(),
       email: document.getElementById("fact-email").value.trim(),
       telefono: document.getElementById("fact-telefono").value.trim(),
@@ -791,6 +985,7 @@ function setupCotEditor() {
   if (!editor || !form) return;
 
   const tbodyItems = "cot-items-body";
+  const clienteSelect = document.getElementById("cot-cliente-select");
 
   function clearForm(cot) {
     form.reset();
@@ -802,6 +997,19 @@ function setupCotEditor() {
     document.getElementById("cot-telefono").value = cot?.telefono || "";
     document.getElementById("cot-metodo").value = cot?.metodo || "Estimado";
     document.getElementById("cot-notas").value = cot?.notas || "";
+
+    // seleccionar cliente si hay id o nombre que coincida
+    refreshClienteSelects();
+    if (clienteSelect) {
+      if (cot?.clienteId) {
+        clienteSelect.value = cot.clienteId;
+      } else if (cot?.cliente) {
+        const cli = clientes.find((c) => c.nombre === cot.cliente);
+        clienteSelect.value = cli ? cli.id : "";
+      } else {
+        clienteSelect.value = "";
+      }
+    }
 
     const tb = document.getElementById(tbodyItems);
     if (tb) tb.innerHTML = "";
@@ -858,6 +1066,12 @@ function setupCotEditor() {
     }
   });
 
+  clienteSelect?.addEventListener("change", () => {
+    const id = clienteSelect.value;
+    const cli = clientes.find((c) => c.id === id);
+    applyClienteToCotizacion(cli);
+  });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const base = recalcDocTotals(
@@ -866,11 +1080,15 @@ function setupCotEditor() {
       "cot-impuesto",
       "cot-total"
     );
+
+    const clienteIdSel = clienteSelect ? clienteSelect.value || null : null;
+
     const doc = {
       id: currentCotizacionId || Date.now().toString(),
       numero: document.getElementById("cot-numero").value.trim(),
       fecha: document.getElementById("cot-fecha").value || todayISO(),
       cliente: document.getElementById("cot-cliente").value.trim(),
+      clienteId: clienteIdSel,
       direccion: document.getElementById("cot-direccion").value.trim(),
       email: document.getElementById("cot-email").value.trim(),
       telefono: document.getElementById("cot-telefono").value.trim(),
@@ -935,161 +1153,104 @@ function generatePdf(doc, tipo) {
     alert("jsPDF no está cargado. Verifica el script en tu HTML.");
     return;
   }
-
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF("p", "mm", "a4"); // A4 vertical
-  const marginLeft = 15;
+  const pdf = new jsPDF();
+
   let y = 20;
 
-  // ---------- ENCABEZADO ----------
   // Logo
   if (config.pdfLogo) {
     try {
-      // logo cuadrado pequeño
-      pdf.addImage(config.pdfLogo, "PNG", marginLeft, y - 10, 25, 25);
+      pdf.addImage(config.pdfLogo, "PNG", 10, 10, 30, 30);
     } catch (e) {
       console.warn("Error añadiendo logo al PDF:", e);
     }
   }
 
-  // Nombre de la empresa al lado del logo
-  pdf.setFontSize(12);
-  pdf.setFont("helvetica", "bold");
-  pdf.text(
-    config.nombreNegocio || "OASIS AIR CLEANER SERVICES LLC",
-    marginLeft + 30,
-    y
-  );
-
-  pdf.setFontSize(9);
-  pdf.setFont("helvetica", "normal");
-  if (config.direccion) {
-    pdf.text(config.direccion, marginLeft + 30, y + 5);
-  }
-  if (config.telefono) {
-    pdf.text(`Tel: ${config.telefono}`, marginLeft + 30, y + 10);
-  }
-  if (config.email) {
-    pdf.text(config.email, marginLeft + 30, y + 15);
-  }
-
-  // Bloque FACTURA a la derecha
-  pdf.setFont("helvetica", "bold");
+  // Datos negocio
   pdf.setFontSize(14);
-  pdf.text(tipo.toUpperCase(), 150, y, { align: "left" });
-
-  pdf.setFontSize(9);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(`Número: ${doc.numero || ""}`, 150, y + 6);
-  pdf.text(`Fecha: ${doc.fecha || ""}`, 150, y + 12);
-
-  // Línea separadora
-  y = 40;
-  pdf.line(marginLeft, y, 200 - marginLeft, y);
-  y += 8;
-
-  // ---------- BLOQUE FACTURAR A ----------
-  pdf.setFont("helvetica", "bold");
+  pdf.text(config.nombreNegocio || "Nexus Finance", 50, 18);
   pdf.setFontSize(10);
-  pdf.text("Facturar a:", marginLeft, y);
-  y += 5;
+  if (config.direccion) pdf.text(config.direccion, 50, 24);
+  if (config.telefono) pdf.text(`Tel: ${config.telefono}`, 50, 30);
+  if (config.email) pdf.text(config.email, 50, 36);
 
-  pdf.setFont("helvetica", "normal");
-  const cliente = doc.cliente || "Cliente";
-  pdf.text(cliente, marginLeft, y);
-  y += 5;
+  // Título derecha (como tu ejemplo largo)
+  pdf.setFontSize(14);
+  pdf.text(tipo.toUpperCase(), 160, 18, { align: "right" });
 
-  if (doc.direccion) {
-    const dirLines = pdf.splitTextToSize(doc.direccion, 90);
-    pdf.text(dirLines, marginLeft, y);
-    y += dirLines.length * 5;
-  }
+  y = 48;
 
-  y += 4; // espacio adicional
-
-  // ---------- TABLA DE ITEMS ----------
-  pdf.setFont("helvetica", "bold");
   pdf.setFontSize(10);
-  // Encabezados de tabla
-  pdf.text("Cant.", marginLeft, y);
-  pdf.text("Descripción", marginLeft + 20, y);
-  pdf.text("Precio", 145, y, { align: "left" });
-  pdf.text("Importe", 180, y, { align: "right" });
-
-  y += 3;
-  pdf.line(marginLeft, y, 200 - marginLeft, y); // línea debajo de encabezados
+  pdf.text(`Número: ${doc.numero}`, 10, y);
+  pdf.text(`Fecha: ${doc.fecha}`, 160, y, { align: "right" });
   y += 6;
 
-  pdf.setFont("helvetica", "normal");
-  doc.items.forEach((it) => {
-    const cantidad = it.cantidad || 0;
-    const precio = it.precio || 0;
-    const linea = cantidad * precio;
+  pdf.text("Facturar a:", 10, y);
+  y += 5;
+  pdf.text(doc.cliente || "", 10, y);
+  y += 5;
+  if (doc.direccion) {
+    const linesDir = pdf.splitTextToSize(doc.direccion, 90);
+    pdf.text(linesDir, 10, y);
+    y += linesDir.length * 5;
+  }
+  if (doc.email) {
+    pdf.text(doc.email, 10, y);
+    y += 5;
+  }
+  if (doc.telefono) {
+    pdf.text(doc.telefono, 10, y);
+    y += 8;
+  }
 
-    // salto de página si se llena
-    if (y > 250) {
+  // Tabla de items (similar a tu segunda imagen)
+  pdf.setFontSize(10);
+  pdf.text("Cant.", 10, y);
+  pdf.text("Descripción", 30, y);
+  pdf.text("Precio", 140, y, { align: "right" });
+  pdf.text("Importe", 190, y, { align: "right" });
+  y += 4;
+  pdf.line(10, y, 200, y);
+  y += 6;
+
+  doc.items.forEach((it) => {
+    const line = (it.cantidad || 0) * (it.precio || 0);
+    if (y > 260) {
       pdf.addPage();
       y = 20;
     }
-
-    // Cantidad
-    pdf.text(String(cantidad), marginLeft, y);
-
-    // Descripción (puede ocupar varias líneas)
-    const descWidth = 95;
-    const descLines = pdf.splitTextToSize(it.descripcion || "", descWidth);
-    pdf.text(descLines, marginLeft + 20, y);
-
-    // Precio e importe en la primera línea del item
-    pdf.text(formatMoney(precio), 145, y, { align: "left" });
-    pdf.text(formatMoney(linea), 180, y, { align: "right" });
-
-    // avanzar según cuántas líneas ocupó la descripción
+    pdf.text(String(it.cantidad || 0), 10, y);
+    const descLines = pdf.splitTextToSize(String(it.descripcion || ""), 100);
+    pdf.text(descLines, 30, y);
+    pdf.text(formatMoney(it.precio || 0), 140, y, { align: "right" });
+    pdf.text(formatMoney(line), 190, y, { align: "right" });
     y += descLines.length * 5;
   });
 
-  // ---------- TOTALES ----------
-  y += 6;
-  pdf.line(120, y, 200 - marginLeft, y);
-  y += 6;
-
-  pdf.setFontSize(10);
-  pdf.text(
-    `Subtotal: ${formatMoney(doc.subtotal || 0)}`,
-    200 - marginLeft,
-    y,
-    { align: "right" }
-  );
-  y += 5;
-  pdf.text(
-    `Impuesto: ${formatMoney(doc.impuesto || 0)}`,
-    200 - marginLeft,
-    y,
-    { align: "right" }
-  );
+  y += 4;
+  pdf.line(120, y, 200, y);
   y += 6;
 
-  pdf.setFont("helvetica", "bold");
+  pdf.text(`Subtotal`, 140, y, { align: "right" });
+  pdf.text(formatMoney(doc.subtotal || 0), 190, y, { align: "right" });
+  y += 6;
+
+  pdf.text(`Impuesto`, 140, y, { align: "right" });
+  pdf.text(formatMoney(doc.impuesto || 0), 190, y, { align: "right" });
+  y += 6;
+
   pdf.setFontSize(12);
-  pdf.text(
-    `TOTAL: ${formatMoney(doc.total || 0)}`,
-    200 - marginLeft,
-    y,
-    { align: "right" }
-  );
+  pdf.text(`TOTAL`, 140, y, { align: "right" });
+  pdf.text(formatMoney(doc.total || 0), 190, y, { align: "right" });
   y += 10;
 
-  // ---------- NOTAS ----------
   if (doc.notas) {
-    pdf.setFont("helvetica", "bold");
     pdf.setFontSize(10);
-    pdf.text("Notas:", marginLeft, y);
+    pdf.text("Notas:", 10, y);
     y += 5;
-
-    pdf.setFont("helvetica", "normal");
-    const notasLines = pdf.splitTextToSize(doc.notas, 180);
-    pdf.text(notasLines, marginLeft, y);
-    y += notasLines.length * 5;
+    const lines = pdf.splitTextToSize(doc.notas, 180);
+    pdf.text(lines, 10, y);
   }
 
   const filename = `${tipo}_${doc.numero || "documento"}.pdf`;
@@ -1107,6 +1268,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupExportButtons();
   setupConfig();
   setupLogout();
+  setupClientesModule();
   setupFacturaEditor();
   setupCotEditor();
 
