@@ -1,0 +1,774 @@
+/* ================== NEXUS FINANCE — DESKTOP ================== */
+
+:root {
+  --bg-body: #02030a;
+  --bg-main: radial-gradient(circle at top left, #0b1630 0, #02030a 55%, #000 100%);
+  --bg-panel: #050815;
+  --bg-panel-strong: #081229;
+  --bg-sidebar: #050812;
+
+  --primary: #1c8cff;
+  --primary2: #00d4ff;
+  --accent: #ffb21f;
+  --danger: #ff4d4f;
+
+  --text-main: #f9fafb;
+  --text-muted: #9ca3af;
+  --text-soft: #6b7280;
+
+  --border-subtle: rgba(148, 163, 184, 0.5);
+  --shadow-strong: 0 24px 70px rgba(0, 0, 0, 0.85);
+
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 999px;
+
+  --sidebar-width: 260px;
+}
+
+/* ============ RESET ============ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+/* =========================================================
+   PANTALLA DE PIN (LOGIN) — overlay, NO apila el layout
+   ========================================================= */
+
+.pin-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  /* fondo completamente opaco para que NO se vea el panel detrás */
+  background: radial-gradient(circle at top left, #0b1630 0, #02030a 40%, #000 100%);
+}
+
+.pin-screen.hidden {
+  display: none;
+}
+
+/* Contenedor de la tarjeta de PIN */
+.pin-card {
+  width: 380px;
+  max-width: 90vw;
+  background: linear-gradient(145deg, #050815, #050815 45%, #081229 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 178, 31, 0.6);
+  padding: 1.7rem 1.5rem 1.5rem;
+  box-shadow: var(--shadow-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pin-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.pin-logo-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 20% 20%, #ffe38a, #ffb21f 60%, #ff8b24);
+  box-shadow: 0 0 32px rgba(255, 178, 31, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: #2b1300;
+}
+
+.pin-title-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.pin-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.pin-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+.pin-card-body label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  margin-bottom: 0.25rem;
+}
+
+.pin-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(156, 163, 175, 0.7);
+  background: rgba(5, 7, 18, 0.85);
+  color: var(--text-main);
+  outline: none;
+}
+
+.pin-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(255, 178, 31, 0.7);
+}
+
+.btn-pin-primary {
+  margin-top: 0.7rem;
+  width: 100%;
+  border-radius: 999px;
+  border: none;
+  padding: 0.75rem 1.1rem;
+  background: linear-gradient(135deg, #ffb21f, #ff8b24);
+  color: #2b1300;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 18px 40px rgba(255, 178, 31, 0.45);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  font-size: 0.9rem;
+}
+
+.btn-pin-primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.btn-pin-primary:active {
+  transform: translateY(1px);
+  box-shadow: 0 10px 24px rgba(255, 178, 31, 0.35);
+}
+
+.pin-error {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: #ffd3d3;
+}
+
+/* =========================================================
+   SHELL PRINCIPAL — LAYOUT ESCRITORIO
+   ========================================================= */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-main);
+}
+
+/* SIDEBAR */
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-sidebar);
+  border-right: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 1.1rem 1rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.8);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.sidebar-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #02030a;
+  object-fit: contain;
+}
+
+.sidebar-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.brand-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+/* navegación */
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.nav-item {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: none;
+  padding: 0.5rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+.nav-item.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary2));
+  color: #020617;
+  font-weight: 600;
+  box-shadow: 0 12px 30px rgba(28, 140, 255, 0.85);
+}
+
+.nav-icon {
+  font-size: 1rem;
+}
+
+/* footer sidebar */
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--primary), var(--primary2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #020617;
+}
+
+.user-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.user-role {
+  font-size: 0.7rem;
+  color: var(--text-soft);
+}
+
+.btn-outline {
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  padding: 0.45rem 0.7rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+/* MAIN */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 1.3rem 1.5rem 1.6rem;
+}
+
+/* topbar */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.page-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.topbar-date {
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* botones */
+
+.btn-primary {
+  border-radius: var(--radius-sm);
+  border: none;
+  padding: 0.55rem 1.1rem;
+  background: linear-gradient(135deg, var(--primary), var(--primary2));
+  color: #020617;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  box-shadow: 0 14px 34px rgba(28, 140, 255, 0.5);
+}
+
+.btn-secondary {
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  padding: 0.48rem 1rem;
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text-main);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.btn-small,
+.btn-small-outline {
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.btn-small {
+  border: none;
+  background: linear-gradient(135deg, var(--primary), var(--primary2));
+  color: #020617;
+  font-weight: 600;
+}
+
+.btn-small-outline {
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: transparent;
+  color: var(--text-main);
+}
+
+/* ============ SECCIONES ================= */
+
+.section {
+  display: none;
+}
+
+.active-section {
+  display: block;
+}
+
+/* ======== KPIs ========= */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.kpi-card {
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #050815, #050815 50%, #081229 100%);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.kpi-card-income {
+  border-color: rgba(74, 222, 128, 0.85);
+}
+
+.kpi-card-expense {
+  border-color: rgba(248, 113, 113, 0.85);
+}
+
+.kpi-card-balance {
+  border-color: rgba(56, 189, 248, 0.9);
+}
+
+.kpi-card-total {
+  border-color: rgba(250, 204, 21, 0.9);
+}
+
+.kpi-label {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.kpi-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.kpi-footer {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ====== PANEL GRID (ingresos vs gastos recientes) ====== */
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 0.8rem 0.9rem 0.9rem;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.65);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Tablas generales */
+
+.table-wrapper {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.35), #020617 55%);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.data-table thead {
+  background: rgba(15, 23, 42, 0.97);
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+}
+
+.data-table th {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+.data-table tbody tr:nth-child(odd) {
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.data-table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.4);
+}
+
+.data-table td {
+  color: #e5e7eb;
+}
+
+.data-table .right {
+  text-align: right;
+}
+
+/* ====== SECCIONES LISTADO SIMPLE (ingresos, gastos, facturas, cotizaciones) ====== */
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.muted {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+/* =========================================================
+   FORMULARIOS GENERALES
+   ========================================================= */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.8rem;
+}
+
+.field span {
+  color: var(--text-soft);
+}
+
+.field input,
+.field select,
+.field textarea {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  padding: 0.45rem 0.6rem;
+  background: rgba(15, 23, 42, 0.95);
+  color: var(--text-main);
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.7);
+}
+
+.field textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* =========================================================
+   FACTURAS y COTIZACIONES — FORMULARIO PANTALLA COMPLETA
+   ========================================================= */
+
+/* contenedor ancho: 2 columnas grandes (datos / items) */
+.doc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.8fr);
+  gap: 1rem;
+}
+
+/* tarjeta formulario factura/cotización */
+.doc-card {
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, #050815, #050815 40%, #081229 100%);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  padding: 0.9rem 0.9rem 0.8rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.78);
+}
+
+.doc-card h3 {
+  margin: 0 0 0.7rem;
+  font-size: 0.95rem;
+}
+
+/* tabla de items */
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.items-table thead {
+  background: rgba(15, 23, 42, 0.98);
+}
+
+.items-table th,
+.items-table td {
+  padding: 0.4rem 0.55rem;
+}
+
+.items-table th {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+.items-table tbody tr:nth-child(odd) {
+  background: rgba(15, 23, 42, 0.95);
+}
+
+.items-table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.items-table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.35);
+}
+
+.items-table input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  padding: 0.3rem 0.4rem;
+  background: rgba(15, 23, 42, 0.97);
+  color: var(--text-main);
+  font-size: 0.75rem;
+}
+
+/* totales */
+
+.doc-totals {
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(148, 163, 184, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.doc-total-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.doc-total-row strong {
+  font-weight: 600;
+}
+
+/* botones items */
+
+.btn-icon {
+  border-radius: 999px;
+  border: none;
+  width: 1.7rem;
+  height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.btn-icon-add {
+  background: linear-gradient(135deg, #22c55e, #4ade80);
+  color: #022c22;
+}
+
+.btn-icon-remove {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fecaca;
+}
+
+/* acciones en tabla de facturas/cotizaciones */
+
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.btn-ghost {
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  padding: 0.2rem 0.6rem;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+/* badges */
+
+.badge-method {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+.badge-total {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: rgba(37, 99, 235, 0.22);
+  border: 1px solid rgba(59, 130, 246, 0.9);
+}
+
+/* CONFIGURACIÓN */
+
+.config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr);
+  gap: 1rem;
+}
+
+/* UTILIDADES */
+
+.text-right {
+  text-align: right;
+}
