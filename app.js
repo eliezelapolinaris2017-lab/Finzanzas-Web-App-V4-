@@ -1155,145 +1155,154 @@ function generatePdf(doc, tipo) {
   }
 
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF("p", "mm", "a4"); // A4 vertical
-  const marginLeft = 15;
+  const pdf = new jsPDF();
+
+  const esFactura = tipo === "Factura";
+  const tituloDoc = esFactura ? "FACTURA" : "COTIZACIÓN";
+  const labelNumero = esFactura ? "Factura #" : "Cotización #";
+  const labelBloqueCliente = esFactura ? "Facturar a:" : "Cotizar a:";
+
   let y = 20;
 
-  // ---------- ENCABEZADO ----------
-  // Logo arriba a la izquierda
+  // ===== ENCABEZADO CON LOGO + DATOS NEGOCIO =====
   if (config.pdfLogo) {
     try {
-      pdf.addImage(config.pdfLogo, "PNG", marginLeft, 10, 25, 25);
+      // logo parte izquierda arriba
+      pdf.addImage(config.pdfLogo, "PNG", 15, 12, 25, 25);
     } catch (e) {
-      console.warn("Error añadiendo logo:", e);
+      console.warn("Error añadiendo logo al PDF:", e);
     }
   }
 
-  // Datos del negocio a la derecha del logo
+  pdf.setFontSize(11);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(12);
   pdf.text(config.nombreNegocio || "OASIS AIR CLEANER SERVICES LLC", 50, 18);
-
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10);
+  if (config.direccion) pdf.text(config.direccion, 50, 24);
+  if (config.telefono) pdf.text(`Tel: ${config.telefono}`, 50, 30);
+  if (config.email) pdf.text(config.email, 50, 36);
 
-  if (config.direccion) {
-    pdf.text(config.direccion, 50, 24);
-  }
-  if (config.telefono) {
-    pdf.text(`Tel: ${config.telefono}`, 50, 30);
-  }
-  if (config.email) {
-    pdf.text(config.email, 50, 36);
-  }
-  y = 40;
-
-  // Bloque "FACTURA" a la derecha, como en tu modelo
+  // Título FACTURA / COTIZACIÓN a la derecha
+  pdf.setFontSize(14);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(12);
-  pdf.text("", 190, 18, { align: "right" });
+  pdf.text(tituloDoc, 165, 18, { align: "right" });
 
   pdf.setFontSize(10);
   pdf.setFont("helvetica", "normal");
-  pdf.text(`Número: ${doc.numero || ""}`, 190, 24, { align: "right" });
-  pdf.text(`Fecha: ${doc.fecha || ""}`, 190, 30, { align: "right" });
+  pdf.text(`${labelNumero}: ${doc.numero || ""}`, 165, 24, { align: "right" });
+  pdf.text(`Fecha: ${doc.fecha || ""}`, 165, 30, { align: "right" });
 
-  // ---------- FACTURAR A ----------
-  y = 50;
+  // Línea separadora
+  pdf.line(15, 40, 195, 40);
+  y = 48;
+
+  // ===== DATOS DEL CLIENTE =====
+  pdf.setFontSize(10);
   pdf.setFont("helvetica", "bold");
-  pdf.text("Facturar a:", marginLeft, y);
-  y += 6;
+  pdf.text(labelBloqueCliente, 15, y);
+  y += 5;
+
   pdf.setFont("helvetica", "normal");
   if (doc.cliente) {
-    pdf.text(String(doc.cliente), marginLeft, y);
-    y += 6;
+    pdf.text(String(doc.cliente), 15, y);
+    y += 5;
   }
   if (doc.direccion) {
-    // Si la dirección es larga la partimos en varias líneas
-    const dirLines = pdf.splitTextToSize(doc.direccion, 80);
-    pdf.text(dirLines, marginLeft, y);
+    const dirLines = pdf.splitTextToSize(String(doc.direccion), 80);
+    pdf.text(dirLines, 15, y);
     y += dirLines.length * 5;
   }
+  if (doc.email) {
+    pdf.text(String(doc.email), 15, y);
+    y += 5;
+  }
+  if (doc.telefono) {
+    pdf.text(String(doc.telefono), 15, y);
+    y += 5;
+  }
 
-  // Pequeño espacio antes de la tabla
-  y += 6;
+  // Espacio antes de tabla
+  y += 5;
 
-  // ---------- TABLA DE ITEMS ----------
+  // ===== TABLA DE ITEMS =====
   pdf.setFont("helvetica", "bold");
-  pdf.text("Cant.", marginLeft, y);
-  pdf.text("Descripción", marginLeft + 20, y);
-  pdf.text("Precio", 140, y);
-  pdf.text("Importe", 180, y, { align: "right" });
+  pdf.text("Cant.", 20, y);
+  pdf.text("Descripción", 40, y);
+  pdf.text("Precio", 135, y, { align: "right" });
+  pdf.text("Importe", 185, y, { align: "right" });
 
   y += 3;
-  pdf.line(marginLeft, y, 195, y); // línea bajo encabezado
+  pdf.line(15, y, 195, y);
   y += 6;
 
   pdf.setFont("helvetica", "normal");
-  const maxY = 245; // dejar espacio para totales y notas
 
   (doc.items || []).forEach((it) => {
-    if (y > maxY) {
+    const cant = it.cantidad || 0;
+    const desc = String(it.descripcion || "");
+    const precio = Number(it.precio || 0);
+    const importe = cant * precio;
+
+    const descLines = pdf.splitTextToSize(desc, 80);
+    const lineHeight = 5 * descLines.length;
+
+    if (y + lineHeight > 250) {
       pdf.addPage();
       y = 20;
     }
 
-    const cantidad = it.cantidad || 0;
-    const precio = it.precio || 0;
-    const linea = cantidad * precio;
+    pdf.text(String(cant), 20, y);
+    pdf.text(descLines, 40, y);
+    pdf.text(formatMoney(precio), 135, y, { align: "right" });
+    pdf.text(formatMoney(importe), 185, y, { align: "right" });
 
-    // descripción con posible salto de línea
-    const descLines = pdf.splitTextToSize(
-      String(it.descripcion || ""),
-      80
-    );
-    const lineHeight = 5;
-    const blockHeight = descLines.length * lineHeight;
-
-    // Cantidad
-    pdf.text(String(cantidad), marginLeft, y);
-    // Descripción
-    pdf.text(descLines, marginLeft + 20, y);
-    // Precio
-    pdf.text(formatMoney(precio), 140, y);
-    // Importe
-    pdf.text(formatMoney(linea), 180, y, { align: "right" });
-
-    y += blockHeight + 2;
+    y += lineHeight + 2;
   });
 
-  // ---------- SUBTOTALES / TOTAL ----------
-  if (y < maxY + 5) y = maxY + 5; // empuja totales un poco hacia abajo
-
-  pdf.line(120, y, 195, y); // línea encima de totales
+  // Línea antes de totales
+  y += 2;
+  pdf.line(115, y, 195, y);
   y += 6;
 
+  // ===== TOTALES =====
   pdf.setFont("helvetica", "normal");
-  pdf.text(`Subtotal: ${formatMoney(doc.subtotal || 0)}`, 130, y);
-  y += 6;
-  pdf.text(`Impuesto: ${formatMoney(doc.impuesto || 0)}`, 130, y);
-  y += 6;
-
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text(`TOTAL: ${formatMoney(doc.total || 0)}`, 130, y);
-
-  // ---------- NOTAS ----------
-  y += 12;
-  pdf.setFontSize(10);
-  pdf.setFont("helvetica", "bold");
-  pdf.text("Notas:", marginLeft, y);
-  pdf.setFont("helvetica", "normal");
+  pdf.text(`Subtotal: ${formatMoney(doc.subtotal || 0)}`, 185, y, {
+    align: "right",
+  });
+  y += 5;
+  pdf.text(`Impuesto: ${formatMoney(doc.impuesto || 0)}`, 185, y, {
+    align: "right",
+  });
   y += 5;
 
+  pdf.setFont("helvetica", "bold");
+  pdf.text(`TOTAL: ${formatMoney(doc.total || 0)}`, 185, y, {
+    align: "right",
+  });
+  y += 12;
+
+  // ===== NOTAS =====
   if (doc.notas) {
-    const notasLines = pdf.splitTextToSize(doc.notas, 180);
-    pdf.text(notasLines, marginLeft, y);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Notas:", 15, y);
+    y += 5;
+    pdf.setFont("helvetica", "normal");
+    const notesLines = pdf.splitTextToSize(String(doc.notas), 180);
+    pdf.text(notesLines, 15, y);
+    y += notesLines.length * 5;
   }
 
-  const filename = `${tipo || "Factura"}_${doc.numero || "documento"}.pdf`;
+  // Mensaje final sólo para factura
+  if (esFactura) {
+    y += 10;
+    pdf.setFont("helvetica", "normal");
+    pdf.text("FACTURA PAGADA EN SU TOTALIDAD.", 15, y);
+  }
+
+  const filename = `${tituloDoc}_${doc.numero || "documento"}.pdf`;
   pdf.save(filename);
 }
+
 
 // ======== INIT ========
 document.addEventListener("DOMContentLoaded", () => {
