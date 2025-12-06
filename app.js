@@ -1191,7 +1191,7 @@ function generatePdf(doc, tipo) {
   // Bloque "FACTURA" a la derecha, como en tu modelo
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(12);
-  pdf.text("FACTURA", 190, 18, { align: "right" });
+  pdf.text("", 190, 18, { align: "right" });
 
   pdf.setFontSize(10);
   pdf.setFont("helvetica", "normal");
